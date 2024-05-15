@@ -12,3 +12,7 @@ mod tests {
         assert_eq!(result, 4);
     }
 }
+
+mod my_folder {
+    mod my_file;
+}
