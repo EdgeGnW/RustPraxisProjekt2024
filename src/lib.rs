@@ -13,6 +13,4 @@ mod tests {
     }
 }
 
-mod my_folder {
-    mod my_file;
-}
+
