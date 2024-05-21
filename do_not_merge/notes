@@ -1,0 +1,32 @@
+* Nummer hinter Qwt spezifiziert Block Größe der Symbole (Qwt256, Qwt512)
+ * Was genau bedeutet das?
+  * Bezieht sich auf Blockgröße der Quad-Vektoren, die intern genutzt werden
+   * Sofern richtig verstanden: Sollte an L2-Cache Größe angepasst werden
+   * When in doubt: Im Paper wurde der QWT256 als 'never slower' beschrieben verglichen mit dem QWT512
+
+* pfs (pre fetching support) suffix optimiert rank operation, kostet jedoch extra space
+ * Wann genau benötigen wir besonders schnelle rank Operationen und können auf Speicherplatz verzichten?
+
+* QWT steht für "quad wavelet tree"
+ * quad steht dafür, dass ein 4-ary tree genutzt wird -> Also jede Node hat 4 Kinder und in jeder Node wird ein Zeichen durch seine 2(!) MSB repräsentiert
+ * Verwendet wird dafür ein quad-vector der als 2-bit Vektor verstanden werden kann und die Werde [0..3] repräsentiert
+ * Dies soll laut dem Paper die Cache-misses verringern und dadurch die Performanz (deutlich) anheben
+
+Operations:
+ * get(i) accesses the i-th symbols of the indexed sequence
+ * rank(c, i) counts the number of occurrences of symbol c up to position i EXCLUDED
+  * returned immer some(), außer Index ist out of bounds, dann None
+ * select(c, i) returns the position of the i-th occurrence of symbol c
+  * returned None, wenn 0-tes Vorkommen, oder höheres Vorkommen als tatsächlich vorhanden selektiert werden soll
+ * Unterscheiden sich in 3 Arten
+  * über binäres Alphabet(?)
+  * über Alphabet [0..3]
+  * über unsigned Alphabet
+ * 0-based
+
+* Unterstützt Serialisierung mittels bincode (für das abspeichern in Dateien; alternativ als "string" in die Datei schreiben)
+
+* To optimize query time and space usage, it's advisable to compact the alphabet and remove "holes," if any.
+ * Manuelles mapping im wrapper, um potenzielle Lücken im Alphabet zu schließen (relevant für ASCII Nummern ohne Lücken!)
+
+
