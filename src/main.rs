@@ -17,10 +17,15 @@ enum Token {
     Comma(char),
 }
 
+#[derive(Debug)]
+struct Node {
+    identifier : String,
+    edges : Vec<String>,
+}
+
 fn main() {
     let input : String = fs::read_to_string("input/input.txt").unwrap_or_default();
     let tokens = tokenize_input(input);
-    println!("{:?}", &tokens);
     parse_tokens(tokens);
 }
 
@@ -59,14 +64,68 @@ fn tokenize_input(input : String) -> Vec<Token> {
 }
 
 fn parse_tokens(tokens : Vec<Token>) {
-    fn parse_tokens_impl(token : Token) {
-        todo!()
+    fn parse_node(tokens : Vec<Token>) -> Node {
+        let mut token_iter = tokens.into_iter().peekable();
+        let mut node = Node {identifier: "".to_string(), edges:  Vec::new()};
+
+        while let Some(token) = token_iter.next() {
+            match token {
+                Token::OpenParen(_) => {
+                    let mut ident = String::new();
+                    if let Some(Token::Identifier(name)) = token_iter.next() {
+                        ident = name;
+                    }
+                    let mut edges_vec = Vec::new();
+
+                    while let Some(token) = token_iter.next() {
+                        match token {
+                            Token::Identifier(ident) => {
+                                edges_vec.push(ident);
+                            },
+                            _ => {},
+                        }
+                    }
+
+                    node.identifier = ident;
+                    node.edges = edges_vec;
+
+               },
+                _ => {},
+            }
+        }
+
+        return node;
+    }
+
+    fn parse_vector(tokens : Vec<Token>) -> Vec<Node> {
+        let mut token_iter = tokens.into_iter();
+        let mut node_tokens = Vec::new();
+        let mut nodes = Vec::new();
+
+        while let Some(token) = token_iter.next() {
+            match token {
+                Token::OpenParen(_) => {
+                    node_tokens = Vec::new();
+                    node_tokens.push(token);
+                },
+                Token::CloseParen(_) => {
+                    node_tokens.push(token);
+                    nodes.push(parse_node(node_tokens.clone()));
+                    node_tokens = Vec::new();
+                },
+                _ => {
+                    node_tokens.push(token);
+                },
+            }
+        }
+
+        nodes
     }
 
     let mut ident_map : HashMap<String, i8> = HashMap::new();
     let mut ident_idx = 1;
     
-    for token in tokens {
+    for token in tokens.clone() {
         match token {
             Token::Identifier(name) => {
                 if let None = ident_map.get(&name) {
@@ -77,6 +136,7 @@ fn parse_tokens(tokens : Vec<Token>) {
             _ => {},
         }
     }
-
-    todo!();
+    
+    let node_vec = parse_vector(tokens[1..tokens.len()-1].to_vec());
+    println!("{:?}", node_vec);
 }
