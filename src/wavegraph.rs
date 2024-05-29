@@ -24,8 +24,8 @@ where
     Ix: petgraph::adj::IndexType,
 {
     graph: Graph<L, L, Ty, Ix>,
-    data_table_nodes: Vec<N>,
-    data_table_edges: Vec<E>,
+    data_table_nodes: Vec<(L, N)>,
+    data_table_edges: Vec<(L, E)>,
 }
 
 impl<L, N, E, Ix> Wavegraph<L, N, E, petgraph::Directed, Ix>
@@ -35,8 +35,8 @@ where
     pub fn new_directed() -> Self {
         Wavegraph {
             graph: DiGraph::<L, L, Ix>::default(),
-            data_table_nodes: Vec::<N>::new(),
-            data_table_edges: Vec::<E>::new(),
+            data_table_nodes: Vec::<(L, N)>::new(),
+            data_table_edges: Vec::<(L, E)>::new(),
         }
     }
 }
@@ -45,8 +45,8 @@ impl<L, N, E> Wavegraph<L, N, E, petgraph::Undirected> {
     pub fn new_undirected() -> Self {
         Wavegraph {
             graph: UnGraph::<L, L>::default(),
-            data_table_nodes: Vec::<N>::new(),
-            data_table_edges: Vec::<E>::new(),
+            data_table_nodes: Vec::<(L, N)>::new(),
+            data_table_edges: Vec::<(L, E)>::new(),
         }
     }
 }
@@ -55,14 +55,15 @@ impl<L, N, E, Ty, Ix> Wavegraph<L, N, E, Ty, Ix>
 where
     Ty: petgraph::EdgeType,
     Ix: petgraph::adj::IndexType,
+    L: Clone,
 {
     //Here we are adding a Node. This node will be stored inside of our internal graph. The real
     //weight will be stored inside of our data_table. To access the stored data we just need the
     //index of the node as it is the same index in our data table. Preferably all the weights
     //should be De-/Serializable.
     pub fn add_node(&mut self, label: L, weight: N) -> NodeIndex<Ix> {
-        let node = self.graph.add_node(label);
-        self.data_table_nodes.insert(node.index(), weight);
+        let node = self.graph.add_node(label.clone());
+        self.data_table_nodes.insert(node.index(), (label, weight));
         node
     }
     //We are adding an Edge between two Nodes. The real weight is being stored in a separate Vec.
@@ -75,15 +76,15 @@ where
         label: L,
         weight: E,
     ) -> EdgeIndex<Ix> {
-        let edge = self.graph.add_edge(a, b, label);
-        self.data_table_edges.insert(edge.index(), weight);
+        let edge = self.graph.add_edge(a, b, label.clone());
+        self.data_table_edges.insert(edge.index(), (label, weight));
         edge
     }
 
     pub fn remove_node(&mut self, a: NodeIndex<Ix>) -> Option<(L, N)> {
         //Remove node removes the node if it exists and it replaces it with the last node that was
         //added. The indices are also shifted accordingly.
-        let label = match self.graph.remove_node(a) {
+        let _label = match self.graph.remove_node(a) {
             Some(label) => label,
             None => return None,
         };
@@ -91,21 +92,22 @@ where
         //This could actually panic! swap_remove is actually okay here because logically it does
         //the same thing as remove_node namely removing the element at that index and replacing it
         //with the last element of the data_table
-        let weight = self.data_table_nodes.swap_remove(a.index());
-
-        Some((label, weight))
+        let label_weight = self.data_table_nodes.swap_remove(a.index());
+        Some(label_weight)
     }
 
     pub fn remove_edge(&mut self, e: EdgeIndex<Ix>) -> Option<(L, E)> {
         //Practically the same as with the nodes.
-        let label = match self.graph.remove_edge(e) {
+        let _label = match self.graph.remove_edge(e) {
             Some(label) => label,
             None => return None,
         };
+        //An assertion could be done with the label from the graph and the label from the data
+        //table but they should not differ. To do the assertion would also require a PartialEq
+        //trait bound on L
+        let label_weight = self.data_table_edges.swap_remove(e.index());
 
-        let weight = self.data_table_edges.swap_remove(e.index());
-
-        Some((label, weight))
+        Some(label_weight)
     }
 
     //TODO: Implement the other functionalities like from_edges
