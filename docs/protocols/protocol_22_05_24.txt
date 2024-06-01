@@ -1,0 +1,18 @@
+* Input in Wavelet Tree umwandeln
+ * Input als Liste an Tupeln (Node, [Kante_zu_Node])
+
+* Änderungen werden gebuffert und erst wenn notwendig angewandt
+ * Anwendung führt zu einem neuen Wavelet Tree
+ * Ob die Änderungen angewandt werden müssen, muss bei Operationen evaluiert werden
+  * Kann dies allgemein gesagt werden, sodass die Anzahl an Prüfungen minimiert werden kann?
+
+* Gewichte/Labels für Nodes und Edges über eine Map realisieren
+ * Jede Node/Edge bekommt einen Index zugewiesen, mit welchem man in der Map das jeweilige (generische) Gewicht nachsehen kann
+ * Gewichte auf Node kann ebenfalls als Kante (auf sich selbst) interpretiert werden -> Nur eine Collection für Gewichte
+
+
+* ToDo bis nächste Woche
+ * Graph als Wavelet Tree mit QWT speichern
+ * Wie könnte der Buffer aussehen? Wie speichern wir Operationen?
+ * Protokoll/Dokumentation Möglichkeiten überlegen
+ * Visualisierung der Datenstruktur (nur als Skizze)

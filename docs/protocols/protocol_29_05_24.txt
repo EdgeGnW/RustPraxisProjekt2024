@@ -1,0 +1,27 @@
+* Node Indizierung gemäß der Indizes von PetGraph
+
+* Edge Indizierung als Tupel aus Indices von (Node_von, Node_bis)
+ * Abspeichern der Edges in HashMap mit Tupel als Key; Value ist Index von Edge laut PetGraph
+
+* Allgemeines Vorgehen für die Erstellung von Wavelet-Tree
+ * Graph Erstellung mit PetGraph (einlesen oder neu erzeugen)
+  * Gewicht und Label als Tupel innerhalb eines Vektors je Node und Edge
+
+ * Erstellung von Wavelet-Tree
+  * Edges in richtige Anordnung -> Gruppierung nach Node von der sie ausgehen
+   * => Adjazenz-Listen zusammenziehen ^= Input für QWT ^= Sequenz
+    * HashMap für Lookup von Edge nach PetGraph Edge Index (PetGraph Edge Index = Index von Edge Weight)
+     * Key von HashMap: Tupel aus (Node_von_index, Node_nach_index)
+     * Value von HashMap: PetGraph Edge Index
+  * Erstellen von Bitmap zur Sequenz
+  * QWT Datenstruktur erstellen
+
+
+* ToDos bis nächste Woche
+ * Informieren über PetGraph
+ * Adjazenz Liste aus PetGraph Graphen extrahieren
+  * Als Rückgabetyp: [[Node_nach1, Node_nach2, ..], [Node_nach1', Node_nach2', ..], ..]
+  * Also eine Liste an Listen von Nodes auf die gezeigt wird (Node = Index einer Node)
+ * Bitmap erstellen anhand von Adjazenz Liste
+ * Wrapper Funktionen für PetGraph erweitern
+ * Weitere Tätigkeiten ggf. auf Anfrage(? Vielleicht hat noch wer Probleme?)
