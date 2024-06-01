@@ -39,6 +39,24 @@ where
             data_table_edges: Vec::<(L, E)>::new(),
         }
     }
+
+    pub fn get_adjacency_list(&self) -> Vec<Vec<&L>> {
+        let mut nodes_iter = self.graph.node_indices();
+        let mut adjacency_list = Vec::<Vec<&L>>::new();
+
+        while let Some(idx) = nodes_iter.next() {
+            adjacency_list.push(match self
+                .graph
+                .neighbors_directed(idx, petgraph::Direction::Outgoing)
+                .map(|x| self.graph.node_weight(x))
+                .collect::<Option<Vec<&L>>>() {
+                Some(mut a) => { a.reverse(); a },
+                _ => {Vec::<&L>::new()}
+            });
+        }
+
+        adjacency_list
+    }
 }
 
 impl<L, N, E> Wavegraph<L, N, E, petgraph::Undirected> {
@@ -48,6 +66,24 @@ impl<L, N, E> Wavegraph<L, N, E, petgraph::Undirected> {
             data_table_nodes: Vec::<(L, N)>::new(),
             data_table_edges: Vec::<(L, E)>::new(),
         }
+    }
+
+    pub fn get_adjacency_list(&self) -> Vec<Vec<&L>> {
+        let mut nodes_iter = self.graph.node_indices();
+        let mut adjacency_list = Vec::<Vec<&L>>::new();
+
+        while let Some(idx) = nodes_iter.next() {
+            adjacency_list.push(match self
+                .graph
+                .neighbors(idx)
+                .map(|x| self.graph.node_weight(x))
+                .collect::<Option<Vec<&L>>>() {
+                Some(mut a) => { a.reverse(); a },
+                _ => {Vec::<&L>::new()}
+            });
+        }
+
+        adjacency_list
     }
 }
 
