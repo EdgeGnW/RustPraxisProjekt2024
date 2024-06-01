@@ -156,6 +156,4 @@ where
         //Question how do we encode this into a graph?
         todo!()
     }
-
-    
 }
