@@ -156,4 +156,15 @@ where
         //Question how do we encode this into a graph?
         todo!()
     }
+
+    pub fn get_bitmap(&self, adjacency_list: Vec<Vec<&L>>) -> Vec<u32> {
+        let mut bit_map = Vec::with_capacity(self.graph.node_count() + self.graph.edge_count());
+        for v in adjacency_list {
+            bit_map.push(1);
+            for _w in v {
+                bit_map.push(0);
+            }
+        }
+        bit_map
+    }
 }
