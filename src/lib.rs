@@ -1,13 +1,15 @@
+mod graphmodel;
+mod wavemodel;
 mod wavegraph;
 
 #[cfg(test)]
 mod test {
-    use crate::wavegraph::Wavegraph;
+    use crate::graphmodel::GraphModel;
 
     #[test]
     fn check_adjacency_list_directed() {
         #![allow(unused_variables)]
-        let mut graph = Wavegraph::new_directed();
+        let mut graph = GraphModel::new_directed();
         let v1 = graph.add_node(String::from("v1"), 1.0);
         let v2 = graph.add_node(String::from("v2"), 1.5);
         let v3 = graph.add_node(String::from("v3"), 1.0);
@@ -38,7 +40,7 @@ mod test {
     #[test]
     fn check_adjacency_list_undirected() {
         #![allow(unused_variables)]
-        let mut graph = Wavegraph::new_undirected();
+        let mut graph = GraphModel::new_undirected();
         let v1 = graph.add_node(String::from("v1"), 1.0);
         let v2 = graph.add_node(String::from("v2"), 1.5);
         let v3 = graph.add_node(String::from("v3"), 1.0);
