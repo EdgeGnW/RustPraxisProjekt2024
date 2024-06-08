@@ -31,7 +31,7 @@ mod test {
         // v4 -> v2
         let e7 = graph.add_edge(v4.index().into(), v2.index().into(), String::from("e7"), 1.0);
 
-        let adjacency_list = graph.get_adjacency_list();
+        let adjacency_list = graph.to_adjacency_list();
 
         assert!(adjacency_list.len() == 4, "Adjacency list has the wrong length!");
         assert!(adjacency_list == vec![vec![&String::from("v2"), &String::from("v3")], vec![], vec![&String::from("v1"), &String::from("v2"), &String::from("v4")], vec![&String::from("v1"), &String::from("v2")]]);
@@ -53,7 +53,7 @@ mod test {
         // v3 - v2
         let e4 = graph.add_edge(v3, v2, String::from("e4"), 1.0);
 
-        let adjacency_list = graph.get_adjacency_list();
+        let adjacency_list = graph.to_adjacency_list();
 
         assert!(adjacency_list.len() == 3, "Adjacency list has the wrong length!");
         assert!(adjacency_list == vec![vec![&String::from("v2"), &String::from("v3")], vec![&String::from("v1"), &String::from("v3")], vec![&String::from("v1"), &String::from("v2")]]);
