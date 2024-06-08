@@ -1,3 +1,5 @@
+use std::convert::From;
+
 use qwt::{
 
 };
@@ -5,7 +7,7 @@ use qwt::{
 
 // enum "QWT" should not be in crate "graphmodel", maybe utils-directory?
 use crate::graphmodel::QWT;
-
+use crate::graphmodel::GraphModel;
 
 /// # Implementation of the WaveModel-State.
 /// In the WaveModel-State, the Graph is stored only in a WaveletMatrix, a BitMap
@@ -25,4 +27,27 @@ pub struct WaveModel<L,N,E>{
     data_table_edges: Vec<E>,
     // flag, rather or not the stored Graph is directed
     is_directed: bool,
+}
+
+impl<L, N, E> WaveModel<L, N, E> {
+    pub fn new() -> Self {
+        todo!()
+    }
+}
+
+impl<L, N, E, Ty, Ix> From<GraphModel<L, N, E, Ty, Ix>> for WaveModel<L, N, E> 
+where
+    Ty: petgraph::EdgeType,
+    Ix: petgraph::adj::IndexType,
+    L: Clone,
+{
+    fn from(graph: GraphModel<L, N, E, Ty, Ix>) -> Self {
+        WaveModel {
+            wavelet_matrix: todo!(),
+            bit_map: todo!(),
+            data_table_nodes: todo!(),
+            data_table_edges: todo!(),
+            is_directed: todo!(),
+        }
+    }
 }

@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+use std::convert::From;
+use crate::wavemodel::WaveModel;
 
 use petgraph::{
     csr::DefaultIx,
@@ -147,13 +149,29 @@ where
     }
 
     //TODO: Implement the other functionalities like from_edges
-
-    pub fn into_wave_model(&self) -> (QWT<L>, Vec<N>, Vec<E>, bool) {
+    fn into_wavemodel(self) -> WaveModel<L, N, E> {
         //Returns a QWT either 256 or 512 with both the nodes and edges data_tables for data lookup
 
         //A node consist of two things a label and the index for the data.
         //The same is true for an edge.
         //Question how do we encode this into a graph?
-        todo!()
+
+        // Implementation lies in WaveModel::from
+        self.into()
+    }
+}
+
+impl<L, N, E, Ty, Ix> From<WaveModel<L, N, E>> for GraphModel<L, N, E, Ty, Ix> 
+where
+    Ty: petgraph::EdgeType,
+    Ix: petgraph::adj::IndexType,
+    L: Clone,
+{
+    fn from(wave: WaveModel<L, N, E>) -> Self {
+        GraphModel {
+            graph: todo!(),
+            data_table_nodes: todo!(),
+            data_table_edges: todo!(),
+        }
     }
 }
