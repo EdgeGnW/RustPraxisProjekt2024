@@ -94,7 +94,7 @@ where
     L: Clone,
 {
     // Get label of some node
-    pub fn node_label(&mut self, idx: NodeIndex<Ix>) -> Option<&L> {
+    pub fn node_label(&self, idx: NodeIndex<Ix>) -> Option<&L> {
         self.graph.node_weight(idx)
     }
     //Here we are adding a Node. This node will be stored inside of our internal graph. The real
@@ -106,7 +106,7 @@ where
         self.data_table_nodes.insert(node.index(), (label, weight));
         node
     }
-    pub fn edge_label(&mut self, idx: EdgeIndex<Ix>) -> Option<&L> {
+    pub fn edge_label(&self, idx: EdgeIndex<Ix>) -> Option<&L> {
         self.graph.edge_weight(idx)
     }
     //We are adding an Edge between two Nodes. The real weight is being stored in a separate Vec.
