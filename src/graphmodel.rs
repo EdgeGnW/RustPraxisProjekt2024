@@ -153,6 +153,11 @@ where
         Some(label_weight)
     }
 
+    /// Returns whether the graph is directed or not.
+    pub fn is_directed(&self) -> bool {
+        self.graph.is_directed()
+    }
+
     //TODO: Implement the other functionalities like from_edges
 
     pub fn into_wave_model(&self) -> (QWT<L>, Vec<N>, Vec<E>, bool) {
@@ -172,7 +177,35 @@ where
     Ix: petgraph::adj::IndexType,
     L: Clone + PartialEq, 
 {
-    // Changes the label associated with the node at the given index position
+    /// Returns the weight of a node.
+    /// Returns None if the index cannot be found.
+    pub fn node_weight(&self, idx: NodeIndex<Ix>) -> Option<&N> {
+        if let Some(label) = self.node_label(idx) {
+            while let Some((l, w)) = self.data_table_nodes.iter().next() {
+                if *label == *l {
+                    return Some(w);
+                }
+            }
+        }
+        return None;
+    }
+
+    /// Returns the weight of an edge.
+    /// Return None if the index cannot be found.
+    pub fn edge_weight(&self, idx: EdgeIndex<Ix>) -> Option<&E> {
+        if let Some(label) = self.edge_label(idx) {
+            while let Some((l, w)) = self.data_table_edges.iter().next() {
+                if *label == *l {
+                    return Some(w);
+                }
+            }
+        }
+        return None;
+    }
+
+    /// Changes the label at the node with specificied index. Returns an option containing the old
+    /// label from before the change.
+    /// Returns None if the node could not be found via the given index.
     pub fn update_node_label(&mut self, idx: NodeIndex<Ix>, new_label: L) -> Option<L> {
         let mut label_old: Option<L> = None;
         match self.graph.node_weight_mut(idx) {
@@ -195,7 +228,9 @@ where
         label_old
     }
 
-    // Changes the label associated with the edge at the given index position
+    /// Changes the label at the edge with specified index. Returns an option containing the old
+    /// label from before the change.
+    /// Returns None if the edge could not be found via the given index.
     pub fn update_edge_label(&mut self, idx: EdgeIndex<Ix>, new_label: L) -> Option<L> {
         let mut label_old: Option<L> = None;
         match self.graph.edge_weight_mut(idx) {
