@@ -33,7 +33,7 @@ mod test {
         // v4 -> v2
         let e7 = graph.add_edge(v4, v2, "e7", 1.0);
 
-        let adjacency_list = graph.get_adjacency_list();
+        let adjacency_list = graph.to_adjacency_list();
 
         let expected_len = 4;
         assert!(adjacency_list.len() == expected_len, 
@@ -60,7 +60,7 @@ mod test {
         // v3 - v2
         let e4 = graph.add_edge(v3, v2, "e4", 1.0);
 
-        let adjacency_list = graph.get_adjacency_list();
+        let adjacency_list = graph.to_adjacency_list();
 
         let expected_len = 3;
         assert!(adjacency_list.len() == expected_len, 
