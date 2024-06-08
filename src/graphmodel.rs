@@ -40,7 +40,7 @@ where
         }
     }
 
-    pub fn get_adjacency_list(&self) -> Vec<Vec<&L>> {
+    pub fn to_adjacency_list(&self) -> Vec<Vec<&L>> {
         let mut nodes_iter = self.graph.node_indices();
         let mut adjacency_list = Vec::<Vec<&L>>::new();
 
@@ -68,7 +68,7 @@ impl<L, N, E> GraphModel<L, N, E, petgraph::Undirected> {
         }
     }
 
-    pub fn get_adjacency_list(&self) -> Vec<Vec<&L>> {
+    pub fn to_adjacency_list(&self) -> Vec<Vec<&L>> {
         let mut nodes_iter = self.graph.node_indices();
         let mut adjacency_list = Vec::<Vec<&L>>::new();
 
