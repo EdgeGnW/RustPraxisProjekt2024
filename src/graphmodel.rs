@@ -93,6 +93,10 @@ where
     Ix: petgraph::adj::IndexType,
     L: Clone,
 {
+    // Get label of some node
+    pub fn node_label(&mut self, idx: NodeIndex<Ix>) -> Option<&L> {
+        self.graph.node_weight(idx)
+    }
     //Here we are adding a Node. This node will be stored inside of our internal graph. The real
     //weight will be stored inside of our data_table. To access the stored data we just need the
     //index of the node as it is the same index in our data table. Preferably all the weights
@@ -101,6 +105,9 @@ where
         let node = self.graph.add_node(label.clone());
         self.data_table_nodes.insert(node.index(), (label, weight));
         node
+    }
+    pub fn edge_label(&mut self, idx: EdgeIndex<Ix>) -> Option<&L> {
+        self.graph.edge_weight(idx)
     }
     //We are adding an Edge between two Nodes. The real weight is being stored in a separate Vec.
     //To access it you need to get the index of the node. That index will be the one where the data
