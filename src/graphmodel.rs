@@ -106,6 +106,10 @@ where
     Ix: petgraph::adj::IndexType,
     L: Clone,
 {
+    // Get label of some node
+    pub fn node_label(&self, idx: NodeIndex<Ix>) -> Option<&L> {
+        self.graph.node_weight(idx)
+    }
     //Here we are adding a Node. This node will be stored inside of our internal graph. The real
     //weight will be stored inside of our data_table. To access the stored data we just need the
     //index of the node as it is the same index in our data table. Preferably all the weights
@@ -116,6 +120,9 @@ where
         let node = self.graph.add_node(label.clone());
         self.data_table_nodes.insert(node.index(), (label, weight));
         node
+    }
+    pub fn edge_label(&self, idx: EdgeIndex<Ix>) -> Option<&L> {
+        self.graph.edge_weight(idx)
     }
     //We are adding an Edge between two Nodes. The real weight is being stored in a separate Vec.
     //To access it you need to get the index of the node. That index will be the one where the data
@@ -167,6 +174,11 @@ where
         Some(label_weight)
     }
 
+    /// Returns whether the graph is directed or not.
+    pub fn is_directed(&self) -> bool {
+        self.graph.is_directed()
+    }
+
     //TODO: Implement the other functionalities like from_edges
 
     pub fn into_wave_model(&self) -> (QWT<L>, Vec<N>, Vec<E>, bool) {
@@ -176,5 +188,89 @@ where
         //The same is true for an edge.
         //Question how do we encode this into a graph?
         todo!()
+    }
+}
+
+// GraphModel, where type L also implements PartialEquality
+impl<L, N, E, Ty, Ix> GraphModel<L, N, E, Ty, Ix>
+where
+    Ty: petgraph::EdgeType,
+    Ix: petgraph::adj::IndexType,
+    L: Clone + PartialEq, 
+{
+    /// Returns the weight of a node.
+    /// Returns None if the index cannot be found.
+    pub fn node_weight(&self, idx: NodeIndex<Ix>) -> Option<&N> {
+        if let Some(label) = self.node_label(idx) {
+            while let Some((l, w)) = self.data_table_nodes.iter().next() {
+                if *label == *l {
+                    return Some(w);
+                }
+            }
+        }
+        return None;
+    }
+
+    /// Returns the weight of an edge.
+    /// Return None if the index cannot be found.
+    pub fn edge_weight(&self, idx: EdgeIndex<Ix>) -> Option<&E> {
+        if let Some(label) = self.edge_label(idx) {
+            while let Some((l, w)) = self.data_table_edges.iter().next() {
+                if *label == *l {
+                    return Some(w);
+                }
+            }
+        }
+        return None;
+    }
+
+    /// Changes the label at the node with specificied index. Returns an option containing the old
+    /// label from before the change.
+    /// Returns None if the node could not be found via the given index.
+    pub fn update_node_label(&mut self, idx: NodeIndex<Ix>, new_label: L) -> Option<L> {
+        let mut label_old: Option<L> = None;
+        match self.graph.node_weight_mut(idx) {
+            Some(w) => {
+                label_old = Some(w.clone());
+                *w = new_label.clone();
+            },
+            None => { return None; },
+        }
+
+        // Update on separate label-weight-vector
+        match label_old {
+            Some(ref old) => {
+                if let Some((current, _)) = self.data_table_nodes.iter_mut().find(|(l, _)| l == old) {
+                    *current = new_label;
+                }        
+            },
+            None => {},
+        }
+        label_old
+    }
+
+    /// Changes the label at the edge with specified index. Returns an option containing the old
+    /// label from before the change.
+    /// Returns None if the edge could not be found via the given index.
+    pub fn update_edge_label(&mut self, idx: EdgeIndex<Ix>, new_label: L) -> Option<L> {
+        let mut label_old: Option<L> = None;
+        match self.graph.edge_weight_mut(idx) {
+            Some(w) => {
+                label_old = Some(w.clone());
+                *w = new_label.clone();
+            },
+            None => { return None; },
+        }
+
+        // Update on separate label-weight-vector
+        match label_old {
+            Some(ref old) => {
+                if let Some((current, _)) = self.data_table_edges.iter_mut().find(|(l, _)| l == old) {
+                    *current = new_label;
+                }        
+            },
+            None => {},
+        }
+        label_old
     }
 }
