@@ -174,6 +174,18 @@ where
         Some(label_weight)
     }
 
+    /// Returns the bitmap necessary to construct a wavelet matrix ontop of the adjacency list.
+    pub fn get_bitmap(&self, adjacency_list: Vec<Vec<&L>>) -> Vec<u32> {
+        let mut bit_map = Vec::with_capacity(self.graph.node_count() + self.graph.edge_count());
+        for v in adjacency_list {
+            bit_map.push(1);
+            for _w in v {
+                bit_map.push(0);
+            }
+        }
+        bit_map
+    }
+
     /// Returns whether the graph is directed or not.
     pub fn is_directed(&self) -> bool {
         self.graph.is_directed()
