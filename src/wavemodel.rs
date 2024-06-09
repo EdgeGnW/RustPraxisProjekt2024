@@ -1,7 +1,8 @@
 use std::convert::From;
 
 use qwt::{
-
+    QWT256,
+    QWT512,
 };
 
 
@@ -35,13 +36,33 @@ impl<L, N, E> WaveModel<L, N, E> {
     }
 }
 
-impl<L, N, E, Ty, Ix> From<GraphModel<L, N, E, Ty, Ix>> for WaveModel<L, N, E> 
+impl<L, N, E, Ix> From<GraphModel<L, N, E, petgraph::Directed, Ix>> for WaveModel<L, N, E> 
 where
-    Ty: petgraph::EdgeType,
     Ix: petgraph::adj::IndexType,
     L: Clone,
 {
-    fn from(graph: GraphModel<L, N, E, Ty, Ix>) -> Self {
+    fn from(graph: GraphModel<L, N, E, petgraph::Directed, Ix>) -> Self {
+        // Somehow decide whether to take QWT256 or QWT512
+        let adj_list = graph.to_adjacency_list().iter().flatten().collect::<Vec<_>>();
+
+        // Get indices for each label and replace within adj_list
+
+        WaveModel {
+            wavelet_matrix: todo!(),
+            bit_map: todo!(),
+            data_table_nodes: todo!(),
+            data_table_edges: todo!(),
+            is_directed: todo!(),
+        }
+    }
+}
+
+impl<L, N, E, Ix> From<GraphModel<L, N, E, petgraph::Undirected, Ix>> for WaveModel<L, N, E> 
+where
+    Ix: petgraph::adj::IndexType,
+    L: Clone,
+{
+    fn from(graph: GraphModel<L, N, E, petgraph::Undirected, Ix>) -> Self {
         WaveModel {
             wavelet_matrix: todo!(),
             bit_map: todo!(),

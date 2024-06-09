@@ -157,13 +157,26 @@ where
         //Question how do we encode this into a graph?
 
         // Implementation lies in WaveModel::from
-        self.into()
+        todo!()
     }
 }
 
-impl<L, N, E, Ty, Ix> From<WaveModel<L, N, E>> for GraphModel<L, N, E, Ty, Ix> 
+impl<L, N, E, Ix> From<WaveModel<L, N, E>> for GraphModel<L, N, E, petgraph::Directed, Ix> 
 where
-    Ty: petgraph::EdgeType,
+    Ix: petgraph::adj::IndexType,
+    L: Clone,
+{
+    fn from(wave: WaveModel<L, N, E>) -> Self {
+        GraphModel {
+            graph: todo!(),
+            data_table_nodes: todo!(),
+            data_table_edges: todo!(),
+        }
+    }
+}
+
+impl<L, N, E, Ix> From<WaveModel<L, N, E>> for GraphModel<L, N, E, petgraph::Undirected, Ix> 
+where
     Ix: petgraph::adj::IndexType,
     L: Clone,
 {
