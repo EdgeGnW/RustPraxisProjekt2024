@@ -1,23 +1,24 @@
-#![allow(dead_code)]
-use std::convert::From;
-use crate::wavemodel::WaveModel;
+use super::wavemodel::WaveModel;
 
 use petgraph::{
-    csr::DefaultIx,
-    graph::{DiGraph, EdgeIndex, NodeIndex, UnGraph},
+    graph::{DefaultIx, DiGraph, EdgeIndex, NodeIndex, UnGraph},
     Graph,
 };
-
-pub enum QWT<L> {
-    QWT256(qwt::QWT256<L>),
-    QWT512(qwt::QWT512<L>),
-}
 
 //L - Label | node/edge addressing
 //N - Node data type
 //E - Edge data type
 //Ty - EdgeType | Directed or Undirected
 //Ix - IndexType | node/edge indexing. u8/u16/u32/usize. https://docs.rs/petgraph/latest/petgraph/graph/trait.IndexType.html#foreign-impls
+
+#[derive(thiserror::Error, Debug)]
+pub enum GraphModelError {
+    #[error("THE CONVERSION WENT WRONG. TRIED TO CONVERT FROM {wavemodel_direction} WAVEMODEL TO {graphmodel_direction} GRAPHMODEL")]
+    ConversionError {
+        wavemodel_direction: String,
+        graphmodel_direction: String,
+    },
+}
 
 #[derive(Clone, Debug)]
 pub struct GraphModel<L, N, E, Ty, Ix = DefaultIx>
@@ -33,6 +34,7 @@ where
 impl<L, N, E, Ix> GraphModel<L, N, E, petgraph::Directed, Ix>
 where
     Ix: petgraph::adj::IndexType,
+    L: Clone + Ord,
 {
     pub fn new_directed() -> Self {
         GraphModel {
@@ -41,51 +43,19 @@ where
             data_table_edges: Vec::<(L, E)>::new(),
         }
     }
-
-    pub fn to_adjacency_list(&self) -> Vec<Vec<&L>> {
-        let mut nodes_iter = self.graph.node_indices();
-        let mut adjacency_list = Vec::<Vec<&L>>::new();
-
-        while let Some(idx) = nodes_iter.next() {
-            adjacency_list.push(match self
-                .graph
-                .neighbors_directed(idx, petgraph::Direction::Outgoing)
-                .map(|x| self.graph.node_weight(x))
-                .collect::<Option<Vec<&L>>>() {
-                Some(mut a) => { a.reverse(); a },
-                _ => {Vec::<&L>::new()}
-            });
-        }
-
-        adjacency_list
-    }
 }
 
-impl<L, N, E> GraphModel<L, N, E, petgraph::Undirected> {
+impl<L, N, E, Ix> GraphModel<L, N, E, petgraph::Undirected, Ix>
+where
+    Ix: petgraph::adj::IndexType,
+    L: Clone + Ord,
+{
     pub fn new_undirected() -> Self {
         GraphModel {
-            graph: UnGraph::<L, L>::default(),
+            graph: UnGraph::<L, L, Ix>::default(),
             data_table_nodes: Vec::<(L, N)>::new(),
             data_table_edges: Vec::<(L, E)>::new(),
         }
-    }
-
-    pub fn to_adjacency_list(&self) -> Vec<Vec<&L>> {
-        let mut nodes_iter = self.graph.node_indices();
-        let mut adjacency_list = Vec::<Vec<&L>>::new();
-
-        while let Some(idx) = nodes_iter.next() {
-            adjacency_list.push(match self
-                .graph
-                .neighbors(idx)
-                .map(|x| self.graph.node_weight(x))
-                .collect::<Option<Vec<&L>>>() {
-                Some(mut a) => { a.reverse(); a },
-                _ => {Vec::<&L>::new()}
-            });
-        }
-
-        adjacency_list
     }
 }
 
@@ -93,8 +63,36 @@ impl<L, N, E, Ty, Ix> GraphModel<L, N, E, Ty, Ix>
 where
     Ty: petgraph::EdgeType,
     Ix: petgraph::adj::IndexType,
-    L: Clone,
+    L: Clone + Ord,
 {
+    pub fn to_adjacency_list(&self) -> Vec<(L, Vec<L>)> {
+        let nodes = self.graph.node_indices();
+        let mut adjacency_list = Vec::<(L, Vec<L>)>::new();
+
+        for node in nodes {
+            let neighbors = self.graph.neighbors(node);
+            let from_node = self.graph.node_weight(node).unwrap().clone();
+            let mut to_nodes = Vec::new();
+            for neighbor_node in neighbors {
+                let label = self.graph.node_weight(neighbor_node).unwrap().clone(); //This should never fail
+                                                                                    //as we are getting the
+                                                                                    //nodes out of
+                                                                                    //node_indices
+                match to_nodes.binary_search(&label) {
+                    Err(index) => to_nodes.insert(index, label),
+                    Ok(_) => (),
+                }
+            }
+            adjacency_list.push((from_node, to_nodes))
+        }
+
+        adjacency_list
+    }
+
+    pub fn data_tables(self) -> (Vec<(L, N)>, Vec<(L, E)>) {
+        (self.data_table_nodes, self.data_table_edges)
+    }
+
     //Here we are adding a Node. This node will be stored inside of our internal graph. The real
     //weight will be stored inside of our data_table. To access the stored data we just need the
     //index of the node as it is the same index in our data table. Preferably all the weights
@@ -147,6 +145,14 @@ where
 
         Some(label_weight)
     }
+    //TODO: Add docs
+    pub fn with_capacity(nodes: usize, edges: usize) -> Self {
+        GraphModel {
+            graph: Graph::with_capacity(nodes, edges),
+            data_table_nodes: Vec::with_capacity(nodes),
+            data_table_edges: Vec::with_capacity(edges),
+        }
+    }
 
     //TODO: Implement the other functionalities like from_edges
     fn into_wavemodel(self) -> WaveModel<L, N, E> {
@@ -161,30 +167,60 @@ where
     }
 }
 
-impl<L, N, E, Ix> From<WaveModel<L, N, E>> for GraphModel<L, N, E, petgraph::Directed, Ix> 
+impl<L, E, N, Ix> TryFrom<WaveModel<L, N, E>> for GraphModel<L, N, E, petgraph::Directed, Ix>
 where
     Ix: petgraph::adj::IndexType,
-    L: Clone,
+    L: Clone + Ord,
 {
-    fn from(wave: WaveModel<L, N, E>) -> Self {
-        GraphModel {
-            graph: todo!(),
-            data_table_nodes: todo!(),
-            data_table_edges: todo!(),
+    type Error = GraphModelError;
+    fn try_from(value: WaveModel<L, N, E>) -> Result<Self, Self::Error> {
+        if value.is_directed() {
+            let (data_table_nodes, data_table_edges) = value.data_tables();
+
+            let mut graph = Graph::with_capacity(data_table_nodes.len(), data_table_edges.len());
+
+            for (label, _) in &data_table_nodes {
+                graph.add_node(label.clone());
+                //TODO: Continue here
+            }
+
+            let graphmodel = GraphModel {
+                graph,
+                data_table_nodes,
+                data_table_edges,
+            };
+
+            Ok(graphmodel)
+        } else {
+            Err(GraphModelError::ConversionError {
+                wavemodel_direction: format!("UNDIRECTED"),
+                graphmodel_direction: format!("DIRECTED"),
+            })
         }
     }
 }
 
-impl<L, N, E, Ix> From<WaveModel<L, N, E>> for GraphModel<L, N, E, petgraph::Undirected, Ix> 
+impl<L, E, N, Ix> TryFrom<WaveModel<L, N, E>> for GraphModel<L, N, E, petgraph::Undirected, Ix>
 where
     Ix: petgraph::adj::IndexType,
-    L: Clone,
+    L: Clone + Ord,
 {
-    fn from(wave: WaveModel<L, N, E>) -> Self {
-        GraphModel {
-            graph: todo!(),
-            data_table_nodes: todo!(),
-            data_table_edges: todo!(),
+    type Error = GraphModelError;
+    fn try_from(value: WaveModel<L, N, E>) -> Result<Self, Self::Error> {
+        if !value.is_directed() {
+            let (data_table_nodes, data_table_edges) = value.data_tables();
+            let mut graphmodel = GraphModel {
+                graph: UnGraph::<L, L, Ix>::default(),
+                data_table_nodes,
+                data_table_edges,
+            };
+            //TODO: Add the conversion from wavelet matrix to nodes and edges
+            Ok(graphmodel)
+        } else {
+            Err(GraphModelError::ConversionError {
+                wavemodel_direction: format!("DIRECTED"),
+                graphmodel_direction: format!("UNDIRECTED"),
+            })
         }
     }
 }
