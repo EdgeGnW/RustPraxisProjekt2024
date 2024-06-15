@@ -9,8 +9,8 @@ mod test {
         let mut graph: GraphModel<&str, f64, f64, petgraph::prelude::Directed> =
             GraphModel::new_directed();
         let v1 = graph.add_node("v1", 1.0);
-        let v2 = graph.add_node("v2", 1.5);
         let v3 = graph.add_node("v3", 1.0);
+        let v2 = graph.add_node("v2", 1.5);
         let v4 = graph.add_node("v4", 2.0);
 
         // Edges:
@@ -40,8 +40,8 @@ mod test {
             adjacency_list
                 == vec![
                     ("v1", vec!["v2", "v3"]),
-                    ("v2", vec![]),
                     ("v3", vec!["v1", "v2", "v4"]),
+                    ("v2", vec![]),
                     ("v4", vec!["v1", "v2"]),
                 ]
         );

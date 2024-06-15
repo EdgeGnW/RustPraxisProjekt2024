@@ -1,8 +1,9 @@
 use super::wavemodel::WaveModel;
+use std::hash::Hash;
 
 use petgraph::{
-    graph::{DefaultIx, DiGraph, EdgeIndex, NodeIndex, UnGraph},
-    Graph,
+    graph::{DefaultIx, DiGraph, EdgeIndex, IndexType, NodeIndex, UnGraph},
+    EdgeType, Graph,
 };
 
 //L - Label | node/edge addressing
@@ -23,8 +24,8 @@ pub enum GraphModelError {
 #[derive(Clone, Debug)]
 pub struct GraphModel<L, N, E, Ty, Ix = DefaultIx>
 where
-    Ty: petgraph::EdgeType,
-    Ix: petgraph::adj::IndexType,
+    Ty: EdgeType,
+    Ix: IndexType,
 {
     graph: Graph<L, L, Ty, Ix>,
     data_table_nodes: Vec<(L, N)>,
@@ -33,8 +34,8 @@ where
 
 impl<L, N, E, Ix> GraphModel<L, N, E, petgraph::Directed, Ix>
 where
-    Ix: petgraph::adj::IndexType,
-    L: Clone + Ord,
+    Ix: IndexType,
+    L: Clone + Ord + Hash,
 {
     pub fn new_directed() -> Self {
         GraphModel {
@@ -47,8 +48,8 @@ where
 
 impl<L, N, E, Ix> GraphModel<L, N, E, petgraph::Undirected, Ix>
 where
-    Ix: petgraph::adj::IndexType,
-    L: Clone + Ord,
+    Ix: IndexType,
+    L: Clone + Ord + Hash,
 {
     pub fn new_undirected() -> Self {
         GraphModel {
@@ -61,9 +62,9 @@ where
 
 impl<L, N, E, Ty, Ix> GraphModel<L, N, E, Ty, Ix>
 where
-    Ty: petgraph::EdgeType,
-    Ix: petgraph::adj::IndexType,
-    L: Clone + Ord,
+    Ty: EdgeType,
+    Ix: IndexType,
+    L: Clone + Ord + Hash,
 {
     pub fn to_adjacency_list(&self) -> Vec<(L, Vec<L>)> {
         let nodes = self.graph.node_indices();
@@ -89,7 +90,7 @@ where
         adjacency_list
     }
 
-    pub fn data_tables(self) -> (Vec<(L, N)>, Vec<(L, E)>) {
+    pub fn into_data_tables(self) -> (Vec<(L, N)>, Vec<(L, E)>) {
         (self.data_table_nodes, self.data_table_edges)
     }
 
@@ -167,21 +168,29 @@ where
     }
 }
 
-impl<L, E, N, Ix> TryFrom<WaveModel<L, N, E>> for GraphModel<L, N, E, petgraph::Directed, Ix>
+impl<L, N, E, Ix> TryFrom<WaveModel<L, N, E>> for GraphModel<L, N, E, petgraph::Directed, Ix>
 where
-    Ix: petgraph::adj::IndexType,
-    L: Clone + Ord,
+    Ix: IndexType,
+    L: Clone + Ord + Hash,
 {
     type Error = GraphModelError;
     fn try_from(value: WaveModel<L, N, E>) -> Result<Self, Self::Error> {
         if value.is_directed() {
-            let (data_table_nodes, data_table_edges) = value.data_tables();
+            let adjacency_list = value.to_adjacency_list();
+            let edge_map = value.to_edge_map();
+            let (data_table_nodes, data_table_edges) = value.into_data_tables();
 
             let mut graph = Graph::with_capacity(data_table_nodes.len(), data_table_edges.len());
 
-            for (label, _) in &data_table_nodes {
-                graph.add_node(label.clone());
-                //TODO: Continue here
+            //A LOT OF CLONING :(
+            for (node_label, neighbor_labels) in adjacency_list {
+                let current_node_index = graph.add_node(node_label.clone());
+                for neighbor_label in neighbor_labels {
+                    let current_neighbor_node_index = graph.add_node(neighbor_label.clone());
+                    let val = edge_map[&(node_label.clone(), neighbor_label)];
+                    let label = data_table_nodes.get(val).unwrap().0.clone();
+                    graph.add_edge(current_node_index, current_neighbor_node_index, label);
+                }
             }
 
             let graphmodel = GraphModel {
@@ -200,21 +209,39 @@ where
     }
 }
 
-impl<L, E, N, Ix> TryFrom<WaveModel<L, N, E>> for GraphModel<L, N, E, petgraph::Undirected, Ix>
+impl<L, N, E, Ix> TryFrom<WaveModel<L, N, E>> for GraphModel<L, N, E, petgraph::Undirected, Ix>
 where
-    Ix: petgraph::adj::IndexType,
-    L: Clone + Ord,
+    Ix: IndexType,
+    L: Clone + Ord + Hash,
 {
     type Error = GraphModelError;
     fn try_from(value: WaveModel<L, N, E>) -> Result<Self, Self::Error> {
         if !value.is_directed() {
-            let (data_table_nodes, data_table_edges) = value.data_tables();
-            let mut graphmodel = GraphModel {
-                graph: UnGraph::<L, L, Ix>::default(),
+            let adjacency_list = value.to_adjacency_list();
+            let edge_map = value.to_edge_map();
+            let (data_table_nodes, data_table_edges) = value.into_data_tables();
+
+            let mut graph = Graph::with_capacity(data_table_nodes.len(), data_table_edges.len());
+
+            //A LOT OF CLONING :(
+            for (node_label, neighbor_labels) in adjacency_list {
+                let node_index = graph.add_node(node_label.clone());
+                for neighbor_label in neighbor_labels {
+                    let neighbor_node_index = graph.add_node(neighbor_label.clone());
+                    let val = edge_map[&(node_label.clone(), neighbor_label)];
+                    let label = data_table_nodes.get(val).unwrap().0.clone();
+                    let edge_index = graph.update_edge(node_index, neighbor_node_index, label);
+
+                    assert!(val == edge_index.index());
+                }
+            }
+
+            let graphmodel = GraphModel {
+                graph,
                 data_table_nodes,
                 data_table_edges,
             };
-            //TODO: Add the conversion from wavelet matrix to nodes and edges
+
             Ok(graphmodel)
         } else {
             Err(GraphModelError::ConversionError {
