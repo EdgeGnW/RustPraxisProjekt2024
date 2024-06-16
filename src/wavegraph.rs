@@ -9,7 +9,7 @@ pub use graphmodel::GraphModel;
 mod wavemodel;
 pub use wavemodel::WaveModel;
 
-pub enum QWT<L> {
-    QWT256(qwt::QWT256<L>),
-    QWT512(qwt::QWT512<L>),
+pub enum QWT {
+    QWT256(qwt::QWT256<usize>),
+    QWT512(qwt::QWT512<usize>),
 }

@@ -5,7 +5,7 @@ use std::hash::Hash;
 use sucds::bit_vectors::BitVector;
 
 use petgraph::{
-    graph::{DefaultIx, DiGraph, EdgeIndex, IndexType, NodeIndex, UnGraph},
+    graph::{edge_index, DefaultIx, DiGraph, EdgeIndex, IndexType, NodeIndex, UnGraph},
     EdgeType, Graph,
 };
 
@@ -13,6 +13,8 @@ use petgraph::{
 pub enum WaveModelError {
     #[error("THE CONVERSION WENT WRONG")]
     ConversionError,
+    #[error("INVALID EDGE. NO ENDPOINTS FOUND")]
+    InvalidEdge,
 }
 /// # Implementation of the WaveModel-State.
 /// In the WaveModel-State, the Graph is stored only in a WaveletMatrix, a BitMap
@@ -22,7 +24,7 @@ pub enum WaveModelError {
 /// like changing or deleting Edges or Nodes can't be performed without a change
 /// into the GraphModel-State.
 pub struct WaveModel<L, N, E> {
-    wavelet_matrix: QWT<L>,
+    wavelet_matrix: QWT,
     sequence: Vec<L>, //input sequence. A compressed adjacency list. Needs the bitmap to be read.
     bitmap: BitVector, //Here the maximum is (num_of_nodes)²
     edge_map: HashMap<(L, L), usize>, //The key is a tuple of two Node labels
@@ -39,7 +41,7 @@ where
         todo!()
     }
 
-    pub fn wavelet_matrix(&self) -> &QWT<L> {
+    pub fn wavelet_matrix(&self) -> &QWT {
         &self.wavelet_matrix
     }
 
@@ -111,7 +113,57 @@ where
 {
     type Error = WaveModelError;
     fn try_from(value: GraphModel<L, N, E, Ty, Ix>) -> Result<Self, Self::Error> {
-        //TODO: Continue here
-        let wavemodel = WaveModel { wavelet_matrix, sequence, bitmap, edge_map, data_table_nodes, data_table_edges, is_directed }
+        let adjacency_list = value.to_adjacency_list();
+        let mut edge_map = HashMap::new();
+
+        let mut bitmap = BitVector::new();
+        let mut sequence = Vec::new();
+
+        for (_, neighbor_labels) in adjacency_list {
+            bitmap.push_bit(true);
+            for neighbor_label in neighbor_labels {
+                bitmap.push_bit(false);
+                sequence.push(neighbor_label);
+            }
+        }
+
+        for edge_index in value.edge_indicies() {
+            match value.edge_endpoints(edge_index) {
+                Some((a, b)) => {
+                    let a_label = match value.node_label(a) {
+                        Some(label) => label.clone(),
+                        None => return Err(WaveModelError::ConversionError),
+                    };
+
+                    let b_label = match value.node_label(b) {
+                        Some(label) => label.clone(),
+                        None => return Err(WaveModelError::ConversionError),
+                    };
+
+                    edge_map.insert((a_label, b_label), edge_index.index());
+                }
+                None => return Err(WaveModelError::InvalidEdge),
+            }
+        }
+
+        //TODO: Check the size of the alphabet and then choose the appropriate QWT struct
+        let sequence_indices = (0..sequence.len()).collect::<Vec<usize>>();
+
+        let wavelet_matrix = QWT::QWT256(qwt::QWT256::from(sequence_indices));
+        let is_directed = value.is_directed();
+
+        let (data_table_nodes, data_table_edges) = value.into_data_tables();
+
+        let wavemodel = WaveModel {
+            wavelet_matrix,
+            sequence,
+            bitmap,
+            edge_map,
+            data_table_nodes,
+            data_table_edges,
+            is_directed,
+        };
+
+        Ok(wavemodel)
     }
 }

@@ -2,7 +2,7 @@ use super::wavemodel::WaveModel;
 use std::hash::Hash;
 
 use petgraph::{
-    graph::{DefaultIx, DiGraph, EdgeIndex, IndexType, NodeIndex, UnGraph},
+    graph::{DefaultIx, DiGraph, EdgeIndex, EdgeIndices, IndexType, NodeIndex, UnGraph},
     EdgeType, Graph,
 };
 
@@ -19,6 +19,8 @@ pub enum GraphModelError {
         wavemodel_direction: String,
         graphmodel_direction: String,
     },
+    #[error("NODE NOT FOUND")]
+    NodeNotFound,
 }
 
 #[derive(Clone, Debug)]
@@ -94,6 +96,10 @@ where
         (self.data_table_nodes, self.data_table_edges)
     }
 
+    pub fn is_directed(&self) -> bool {
+        self.graph.is_directed()
+    }
+
     //Here we are adding a Node. This node will be stored inside of our internal graph. The real
     //weight will be stored inside of our data_table. To access the stored data we just need the
     //index of the node as it is the same index in our data table. Preferably all the weights
@@ -146,13 +152,29 @@ where
 
         Some(label_weight)
     }
-    //TODO: Add docs
+
+    pub fn node_label(&self, a: NodeIndex<Ix>) -> Option<&L> {
+        self.graph.node_weight(a)
+    }
+
+    pub fn edge_label(&self, e: EdgeIndex<Ix>) -> Option<&L> {
+        self.graph.edge_weight(e)
+    }
+
     pub fn with_capacity(nodes: usize, edges: usize) -> Self {
         GraphModel {
             graph: Graph::with_capacity(nodes, edges),
             data_table_nodes: Vec::with_capacity(nodes),
             data_table_edges: Vec::with_capacity(edges),
         }
+    }
+
+    pub fn edge_indicies(&self) -> EdgeIndices<Ix> {
+        self.graph.edge_indices()
+    }
+
+    pub fn edge_endpoints(&self, e: EdgeIndex<Ix>) -> Option<(NodeIndex<Ix>, NodeIndex<Ix>)> {
+        self.graph.edge_endpoints(e)
     }
 
     //TODO: Implement the other functionalities like from_edges
