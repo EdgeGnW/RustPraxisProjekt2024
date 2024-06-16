@@ -1,3 +1,8 @@
+/// Wavegraphs are the Entrypoint of this Crate
+/// To create a new Wavegraph, you have to pass
+
+
+
 // The Entrypoint of the public Crate.
 // Eventaully, the user is gonna create a WaveGraph, that stores the Data either in the
 // GraphModel- or WaveModel-State, on being a modified Petgraph, the other a QWT-based

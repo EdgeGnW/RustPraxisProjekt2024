@@ -1,6 +1,25 @@
-mod graphmodel;
-mod wavemodel;
-mod wavegraph;
+//! # Wavegraph
+//! 
+//! ## Basic Idea of the Wavegraph Crate
+//! 
+//! This Crate provides a Datastructure called "Wavegraph" implementing common functionalities of weighted Graphs.
+//! To minimize the use of Storage, the Graph will be stored in either one of two different "States" called "Wavemodel" and "Graphmodel".
+//! 
+//! ### Wavemodel
+//! 
+//! In the Wavemodel-State, the Graph will be stored in a Wavelet-Matrix Form based on the Crate "[QWT](https://crates.io/crates/qwt)".
+//! Some modifying Operations like adding new Nodes is not possible in this State, yet the state is way more efficient in storing the Data then normal Graph implementations
+//! based on Adjacency-Lists.
+//! 
+//! ### Graphmodel
+//! 
+//! In the Graphmodel-State, the Graph will be stored in an Adjacency-List Form based on the Crate "[Petgraph](https://docs.rs/petgraph/latest/petgraph/)".
+//! In this State, most Operations are supported, yet the state is less efficient in storing the Data, then the Wavemodel-State.
+ 
+
+pub mod graphmodel;
+pub mod wavemodel;
+pub mod wavegraph;
 
 #[cfg(test)]
 mod test {
