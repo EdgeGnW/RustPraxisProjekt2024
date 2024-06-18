@@ -38,7 +38,6 @@ mod test {
             adjacency_list.len() == 4,
             "Adjacency list has the wrong length!"
         );
-        dbg!(&adjacency_list);
         assert!(
             adjacency_list
                 == vec![
@@ -74,8 +73,6 @@ mod test {
             adjacency_list.len() == 3,
             "Adjacency list has the wrong length!"
         );
-
-        dbg!(&adjacency_list);
 
         assert!(
             adjacency_list
@@ -132,7 +129,6 @@ mod test {
                 assert!(edge_map_found == edge_map_expected);
             }
             Err(e) => {
-                dbg!(e);
                 assert!(false);
             }
         }
@@ -184,7 +180,6 @@ mod test {
                 assert!(edge_map_found == edge_map_expected);
             }
             Err(e) => {
-                dbg!(e);
                 assert!(false);
             }
         }
@@ -209,6 +204,14 @@ mod test {
         // v3 - v2
         let e4 = graph.add_edge(v3, v2, "e4", 1.0);
 
+        let adjacency_list_expected = vec![
+            ("v1", vec!["v2", "v3"]),
+            ("v2", vec!["v3"]),
+            ("v3", vec!["v2"]),
+        ];
+
+        assert!(adjacency_list_expected == graph.to_adjacency_list());
+
         let mut graph_orig = graph.clone();
 
         let wavemodel: WaveModel<&str, f64, f64>;
@@ -219,22 +222,16 @@ mod test {
             }
             Err(e) => {
                 wavemodel = WaveModel::new();
-                dbg!(e);
                 assert!(false);
             }
         }
 
         match GraphModel::<&str, f64, f64, petgraph::prelude::Directed>::try_from(wavemodel) {
             Ok(graphmodel) => {
-                let adjacency_list_expected = vec![
-                    ("v1", vec!["v2", "v3"]),
-                    ("v2", vec!["v3"]),
-                    ("v3", vec!["v2"]),
-                ];
                 let adjacency_list_found = graphmodel.to_adjacency_list();
-
-                dbg!(&adjacency_list_expected);
                 dbg!(&adjacency_list_found);
+                dbg!(&adjacency_list_expected);
+
                 assert!(adjacency_list_found == adjacency_list_expected);
             }
             Err(e) => {}
