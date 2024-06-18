@@ -203,14 +203,13 @@ where
             let (data_table_nodes, data_table_edges) = value.into_data_tables();
 
             let mut graph = Graph::with_capacity(data_table_nodes.len(), data_table_edges.len());
-
             //A LOT OF CLONING :(
             for (node_label, neighbor_labels) in adjacency_list {
                 let current_node_index = graph.add_node(node_label.clone());
                 for neighbor_label in neighbor_labels {
                     let current_neighbor_node_index = graph.add_node(neighbor_label.clone());
                     let val = edge_map[&(node_label.clone(), neighbor_label)];
-                    let label = data_table_nodes.get(val).unwrap().0.clone();
+                    let label = data_table_edges.get(val).unwrap().0.clone();
                     graph.add_edge(current_node_index, current_neighbor_node_index, label);
                 }
             }

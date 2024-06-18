@@ -76,31 +76,32 @@ where
     pub fn to_adjacency_list(&self) -> Vec<(L, Vec<L>)> {
         let mut adjacency_list: Vec<(L, Vec<L>)> = Vec::new();
         let mut sequence_iterator = self.sequence().iter();
-        let mut current_sequence: Option<Vec<L>> = None;
+        let mut current_sequence: Vec<L> = Vec::new();
         let mut node_iterator = self.data_table_nodes.iter();
+        let mut bitmap_iter = self.bitmap().iter().peekable();
 
-        for is_node in self.bitmap().iter() {
-            if is_node {
-                match current_sequence.take() {
-                    Some(current_sequence) => {
-                        let node_label = node_iterator.next().unwrap().0.clone();
-                        adjacency_list.push((node_label, current_sequence));
-                    }
-                    None => {
-                        let node_label = node_iterator.next().unwrap().0.clone();
-                        adjacency_list.push((node_label, Vec::new()));
-                    }
-                }
-            } else {
-                match &mut current_sequence {
-                    None => current_sequence = Some(Vec::new()),
-                    Some(current_sequence) => {
-                        let label = sequence_iterator.next().unwrap().clone();
-                        current_sequence.push(label);
-                    }
+        while let Some(is_node) = bitmap_iter.next() {
+            if !is_node {
+                let label = sequence_iterator.next().unwrap().clone();
+                current_sequence.push(label);
+            }
+
+            // If the next bit indicates the beginning of a new node..
+            if let Some(is_node) = bitmap_iter.peek() {
+                if *is_node {
+                    let node_label = node_iterator.next().unwrap().0.clone();
+                    // ..add the current sequence to the adjacency list
+                    adjacency_list.push((node_label, current_sequence.clone()));
+                    current_sequence = Vec::new();
                 }
             }
         }
+
+        adjacency_list.push((
+            node_iterator.next().unwrap().0.clone(),
+            current_sequence.clone(),
+        ));
+
         adjacency_list
     }
 }
