@@ -6,6 +6,11 @@ use petgraph::{
     Graph,
 };
 
+use sucds::bit_vectors::{
+    Rank9Sel,
+    prelude::*
+};
+
 /// Allows for the selection of either a 256-bit-alphabet-length wavelet-matrix or
 /// the 512-bit variant.
 pub enum QWT<L> {
@@ -187,15 +192,15 @@ where
     }
 
     /// Returns the bitmap necessary to construct a wavelet matrix ontop of the adjacency list.
-    pub fn get_bitmap(&self, adjacency_list: Vec<Vec<&L>>) -> Vec<u32> {
+    pub fn get_bitmap(&self, adjacency_list: Vec<Vec<&L>>) -> Rank9Sel {
         let mut bit_map = Vec::with_capacity(self.graph.node_count() + self.graph.edge_count());
         for v in adjacency_list {
-            bit_map.push(1);
+            bit_map.push(true);
             for _w in v {
-                bit_map.push(0);
+                bit_map.push(false);
             }
         }
-        bit_map
+        Rank9Sel::build_from_bits(bit_map, true, true, true).expect("Couldn't build Bitmap")
     }
 
     /// Returns whether the graph is directed or not.
