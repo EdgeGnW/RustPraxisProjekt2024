@@ -2,15 +2,11 @@ use super::wavemodel::WaveModel;
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use petgraph::{
-    csr::DefaultIx,
     graph::{DefaultIx, DiGraph, EdgeIndex, EdgeIndices, IndexType, NodeIndex, UnGraph},
     EdgeType, Graph,
 };
 
-use sucds::bit_vectors::{
-    Rank9Sel,
-    prelude::*
-};
+use sucds::bit_vectors::{prelude::*, Rank9Sel};
 
 //L - Label | node/edge addressing
 //N - Node data type
@@ -109,15 +105,11 @@ where
         (self.data_table_nodes, self.data_table_edges)
     }
 
-    pub fn is_directed(&self) -> bool {
-        self.graph.is_directed()
-    }
-
     // Get label of some node
     pub fn node_label(&self, idx: NodeIndex<Ix>) -> Option<&L> {
         self.graph.node_weight(idx)
     }
-  
+
     //Here we are adding a Node. This node will be stored inside of our internal graph. The real
     //weight will be stored inside of our data_table. To access the stored data we just need the
     //index of the node as it is the same index in our data table. Preferably all the weights
@@ -184,7 +176,7 @@ where
 
         Some(label_weight)
     }
-  
+
     pub fn with_capacity(nodes: usize, edges: usize) -> Self {
         GraphModel {
             graph: Graph::with_capacity(nodes, edges),
@@ -200,13 +192,13 @@ where
     pub fn edge_endpoints(&self, e: EdgeIndex<Ix>) -> Option<(NodeIndex<Ix>, NodeIndex<Ix>)> {
         self.graph.edge_endpoints(e)
     }
-  
+
     /// Returns the bitmap necessary to construct a wavelet matrix ontop of the adjacency list.
-    pub fn get_bitmap(&self, adjacency_list: Vec<Vec<&L>>) -> Rank9Sel {
+    pub fn get_bitmap(&self, adjacency_list: Vec<(L, Vec<L>)>) -> Rank9Sel {
         let mut bit_map = Vec::with_capacity(self.graph.node_count() + self.graph.edge_count());
-        for v in adjacency_list {
+        for (v, vs) in adjacency_list {
             bit_map.push(true);
-            for _w in v {
+            for _w in vs {
                 bit_map.push(false);
             }
         }

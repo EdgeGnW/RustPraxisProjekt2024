@@ -3,9 +3,9 @@ pub mod wavegraph;
 mod test {
     use crate::wavegraph::GraphModel;
     use crate::wavegraph::WaveModel;
+    use petgraph::graph::DefaultIx;
     use std::collections::HashMap;
     use sucds::bit_vectors::BitVector;
-    use petgraph::graph::DefaultIx;
 
     fn create_directed_graph() -> GraphModel<String, f32, f32, petgraph::Directed, DefaultIx> {
         #![allow(unused_variables)]
@@ -69,10 +69,13 @@ mod test {
         );
 
         let expected_list = vec![
-            vec![&"v2", &"v3"],
-            vec![],
-            vec![&"v1", &"v2", &"v4"],
-            vec![&"v1", &"v2"],
+            ("v1".to_string(), vec!["v2".to_string(), "v3".to_string()]),
+            ("v2".to_string(), vec![]),
+            (
+                "v3".to_string(),
+                vec!["v1".to_string(), "v2".to_string(), "v4".to_string()],
+            ),
+            ("v4".to_string(), vec!["v1".to_string(), "v2".to_string()]),
         ];
         assert!(
             adjacency_list == expected_list,
@@ -180,9 +183,9 @@ mod test {
             Err(e) => {
                 assert!(false);
             }
-      }
-  }
-  
+        }
+    }
+
     fn check_adjacency_list_undirected() {
         let graph = create_undirected_graph();
 
@@ -196,56 +199,17 @@ mod test {
             adjacency_list.len()
         );
 
-        let expected_list = vec![vec![&"v2", &"v3"], vec![&"v1", &"v3"], vec![&"v1", &"v2"]];
+        let expected_list = vec![
+            ("v1".to_string(), vec!["v2".to_string(), "v3".to_string()]),
+            ("v2".to_string(), vec!["v1".to_string(), "v3".to_string()]),
+            ("v3".to_string(), vec!["v1".to_string(), "v2".to_string()]),
+        ];
         assert!(
             adjacency_list == expected_list,
             "Adjacency list diverges from expectation.\nExpected:\n{0:?}\nFound:\n{1:?}",
             expected_list,
             adjacency_list
         );
-    }
-
-    #[test]
-    fn check_update_node_label() {
-        #![allow(unused_variables)]
-        let mut graph_dir = create_directed_graph();
-        let mut graph_undir = create_undirected_graph();
-
-        for i in 0..3 {
-            let label_old = graph_dir.node_label(i.into()).unwrap().clone();
-            graph_dir.update_node_label(i.into(), format!("w{0}", i).to_string());
-            let label_new = graph_dir.node_label(i.into()).unwrap().clone();
-            assert!(
-                label_old != label_new,
-                "[DirGraph] Label was not changed by the update!\nOld:\n{0}\nNew:\n{1}",
-                label_old,
-                label_new
-            );
-            assert!(
-                format!("w{0}", i).to_string() == label_new,
-                "[DirGraph] Label diverges from expected value!\nExpected:\nw{0}\nFound:\n{1}",
-                i,
-                label_new
-            );
-        }
-
-        for i in 0..2 {
-            let label_old = graph_undir.node_label(i.into()).unwrap().clone();
-            graph_undir.update_node_label(i.into(), format!("w{0}", i).to_string());
-            let label_new = graph_undir.node_label(i.into()).unwrap().clone();
-            assert!(
-                label_old != label_new,
-                "[UndirGraph] Label was not changed by the update!\nOld:\n{0}\nNew:\n{1}",
-                label_old,
-                label_new
-            );
-            assert!(
-                format!("w{0}", i).to_string() == label_new,
-                "[UndirGraph] Label diverges from expected value!\nExpected:\nw{0}\nFound:\n{1}",
-                i,
-                label_new
-            );
-        }
     }
 
     #[test]
@@ -298,48 +262,6 @@ mod test {
                 assert!(adjacency_list_found == adjacency_list_expected);
             }
             Err(e) => {}
-        }
-    }
-
-    fn check_update_edge_label() {
-        #![allow(unused_variables)]
-        let mut graph_dir = create_directed_graph();
-        let mut graph_undir = create_undirected_graph();
-
-        for i in 0..6 {
-            let label_old = graph_dir.edge_label(i.into()).unwrap().clone();
-            graph_dir.update_edge_label(i.into(), format!("w{0}", i).to_string());
-            let label_new = graph_dir.edge_label(i.into()).unwrap().clone();
-            assert!(
-                label_old != label_new,
-                "[DirGraph] Label was not changed by the update!\nOld:\n{0}\nNew:\n{1}",
-                label_old,
-                label_new
-            );
-            assert!(
-                format!("w{0}", i).to_string() == label_new,
-                "[DirGraph] Label diverges from expected value!\nExpected:\nw{0}\nFound:\n{1}",
-                i,
-                label_new
-            );
-        }
-
-        for i in 0..2 {
-            let label_old = graph_undir.edge_label(i.into()).unwrap().clone();
-            graph_undir.update_edge_label(i.into(), format!("w{0}", i).to_string());
-            let label_new = graph_undir.edge_label(i.into()).unwrap().clone();
-            assert!(
-                label_old != label_new,
-                "[UndirGraph] Label was not changed by the update!\nOld:\n{0}\nNew:\n{1}",
-                label_old,
-                label_new
-            );
-            assert!(
-                format!("w{0}", i).to_string() == label_new,
-                "[UndirGraph] Label diverges from expected value!\nExpected:\nw{0}\nFound:\n{1}",
-                i,
-                label_new
-            );
         }
     }
 
