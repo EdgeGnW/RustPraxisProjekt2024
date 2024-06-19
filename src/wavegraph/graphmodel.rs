@@ -2,8 +2,14 @@ use super::wavemodel::WaveModel;
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use petgraph::{
+    csr::DefaultIx,
     graph::{DefaultIx, DiGraph, EdgeIndex, EdgeIndices, IndexType, NodeIndex, UnGraph},
     EdgeType, Graph,
+};
+
+use sucds::bit_vectors::{
+    Rank9Sel,
+    prelude::*
 };
 
 //L - Label | node/edge addressing
@@ -23,6 +29,13 @@ pub enum GraphModelError {
     NodeNotFound,
 }
 
+/// The main model for everything (pet-)graph related. Handles the underlying graph as well
+/// as the its label-weight-mapping.
+/// Also provides functionality for converting into a WaveModel. Can either represent a directed or
+/// undirected graph.
+/// Has generic support for the label (L), node weight (N) and edge weight (E). The edge type (Ty)
+/// has to be of either directed or undirected type. The index type (Ix) has different unsigned
+/// variants ranging from u8 to u64 and eventually to usize.
 #[derive(Clone, Debug)]
 pub struct GraphModel<L, N, E, Ty, Ix = DefaultIx>
 where
@@ -100,10 +113,17 @@ where
         self.graph.is_directed()
     }
 
+    // Get label of some node
+    pub fn node_label(&self, idx: NodeIndex<Ix>) -> Option<&L> {
+        self.graph.node_weight(idx)
+    }
+  
     //Here we are adding a Node. This node will be stored inside of our internal graph. The real
     //weight will be stored inside of our data_table. To access the stored data we just need the
     //index of the node as it is the same index in our data table. Preferably all the weights
     //should be De-/Serializable.
+    /// Adds a new node with its own label and weight to the graph.
+    /// Returns the index pointing to the newly created node.
     pub fn add_node(&mut self, label: L, weight: N) -> NodeIndex<Ix> {
         let node = self.graph.add_node(label.clone());
         self.data_table_nodes.insert(node.index(), (label, weight));
@@ -112,6 +132,14 @@ where
     //We are adding an Edge between two Nodes. The real weight is being stored in a separate Vec.
     //To access it you need to get the index of the node. That index will be the one where the data
     //is stored.Preferably all the weights should be De-/Serializable.
+    pub fn edge_label(&self, idx: EdgeIndex<Ix>) -> Option<&L> {
+        self.graph.edge_weight(idx)
+    }
+    //We are adding an Edge between two Nodes. The real weight is being stored in a separate Vec.
+    //To access it you need to get the index of the node. That index will be the one where the data
+    //is stored.Preferably all the weights should be De-/Serializable.
+    /// Adds a new edge with its own label and weight to the graph.
+    /// Returns the index pointing to the newly created edge.
     pub fn add_edge(
         &mut self,
         a: NodeIndex<Ix>,
@@ -124,6 +152,8 @@ where
         edge
     }
 
+    /// Removes a node from the graph. If the node was given a label, this function returns the
+    /// label paired with its weight after removing both from the structure.
     pub fn remove_node(&mut self, a: NodeIndex<Ix>) -> Option<(L, N)> {
         //Remove node removes the node if it exists and it replaces it with the last node that was
         //added. The indices are also shifted accordingly.
@@ -139,6 +169,8 @@ where
         Some(label_weight)
     }
 
+    /// Removes an edge from the graph. If the edge was given a label, this function returns the
+    /// label paired with its weight after removing both from the structure.
     pub fn remove_edge(&mut self, e: EdgeIndex<Ix>) -> Option<(L, E)> {
         //Practically the same as with the nodes.
         let _label = match self.graph.remove_edge(e) {
@@ -152,15 +184,7 @@ where
 
         Some(label_weight)
     }
-
-    pub fn node_label(&self, a: NodeIndex<Ix>) -> Option<&L> {
-        self.graph.node_weight(a)
-    }
-
-    pub fn edge_label(&self, e: EdgeIndex<Ix>) -> Option<&L> {
-        self.graph.edge_weight(e)
-    }
-
+  
     pub fn with_capacity(nodes: usize, edges: usize) -> Self {
         GraphModel {
             graph: Graph::with_capacity(nodes, edges),
@@ -176,6 +200,23 @@ where
     pub fn edge_endpoints(&self, e: EdgeIndex<Ix>) -> Option<(NodeIndex<Ix>, NodeIndex<Ix>)> {
         self.graph.edge_endpoints(e)
     }
+  
+    /// Returns the bitmap necessary to construct a wavelet matrix ontop of the adjacency list.
+    pub fn get_bitmap(&self, adjacency_list: Vec<Vec<&L>>) -> Rank9Sel {
+        let mut bit_map = Vec::with_capacity(self.graph.node_count() + self.graph.edge_count());
+        for v in adjacency_list {
+            bit_map.push(true);
+            for _w in v {
+                bit_map.push(false);
+            }
+        }
+        Rank9Sel::build_from_bits(bit_map, true, true, true).expect("Couldn't build Bitmap")
+    }
+
+    /// Returns whether the graph is directed or not.
+    pub fn is_directed(&self) -> bool {
+        self.graph.is_directed()
+    }
 
     //TODO: Implement the other functionalities like from_edges
     fn into_wavemodel(self) -> WaveModel<L, N, E> {
@@ -184,7 +225,6 @@ where
         //A node consist of two things a label and the index for the data.
         //The same is true for an edge.
         //Question how do we encode this into a graph?
-
         // Implementation lies in WaveModel::from
         todo!()
     }

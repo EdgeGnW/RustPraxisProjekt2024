@@ -16,6 +16,7 @@ pub enum WaveModelError {
     #[error("INVALID EDGE. NO ENDPOINTS FOUND")]
     InvalidEdge,
 }
+
 /// # Implementation of the WaveModel-State.
 /// In the WaveModel-State, the Graph is stored only in a WaveletMatrix, a BitMap
 /// and a flag rather or not the Graph is directed or not.
