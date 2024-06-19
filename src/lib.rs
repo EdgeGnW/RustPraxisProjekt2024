@@ -1,10 +1,7 @@
-mod graphmodel;
-mod wavegraph;
-mod wavemodel;
-
+pub mod wavegraph;
 #[cfg(test)]
 mod test {
-    use crate::graphmodel::GraphModel;
+    use crate::wavegraph::GraphModel;
     use petgraph::graph::DefaultIx;
 
     fn create_directed_graph() -> GraphModel<String, f32, f32, petgraph::Directed, DefaultIx> {

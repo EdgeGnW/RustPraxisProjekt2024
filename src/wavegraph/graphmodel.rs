@@ -11,7 +11,7 @@ use sucds::bit_vectors::{
     prelude::*
 };
 
-/// Allows for the selection of either a 256-bit-alphabet-length wavelet-matrix or 
+/// Allows for the selection of either a 256-bit-alphabet-length wavelet-matrix or
 /// the 512-bit variant.
 pub enum QWT<L> {
     QWT256(qwt::QWT256<L>),
@@ -24,12 +24,12 @@ pub enum QWT<L> {
 //Ty - EdgeType | Directed or Undirected
 //Ix - IndexType | node/edge indexing. u8/u16/u32/usize. https://docs.rs/petgraph/latest/petgraph/graph/trait.IndexType.html#foreign-impls
 
-/// The main model for everything (pet-)graph related. Handles the underlying graph as well 
+/// The main model for everything (pet-)graph related. Handles the underlying graph as well
 /// as the its label-weight-mapping.
 /// Also provides functionality for converting into a WaveModel. Can either represent a directed or
 /// undirected graph.
-/// Has generic support for the label (L), node weight (N) and edge weight (E). The edge type (Ty) 
-/// has to be of either directed or undirected type. The index type (Ix) has different unsigned 
+/// Has generic support for the label (L), node weight (N) and edge weight (E). The edge type (Ty)
+/// has to be of either directed or undirected type. The index type (Ix) has different unsigned
 /// variants ranging from u8 to u64 and eventually to usize.
 #[derive(Clone, Debug)]
 pub struct GraphModel<L, N, E, Ty, Ix = DefaultIx>
@@ -61,14 +61,20 @@ where
         let mut adjacency_list = Vec::<Vec<&L>>::new();
 
         while let Some(idx) = nodes_iter.next() {
-            adjacency_list.push(match self
-                .graph
-                .neighbors_directed(idx, petgraph::Direction::Outgoing)
-                .map(|x| self.graph.node_weight(x))
-                .collect::<Option<Vec<&L>>>() {
-                Some(mut a) => { a.reverse(); a },
-                _ => {Vec::<&L>::new()}
-            });
+            adjacency_list.push(
+                match self
+                    .graph
+                    .neighbors_directed(idx, petgraph::Direction::Outgoing)
+                    .map(|x| self.graph.node_weight(x))
+                    .collect::<Option<Vec<&L>>>()
+                {
+                    Some(mut a) => {
+                        a.reverse();
+                        a
+                    }
+                    _ => Vec::<&L>::new(),
+                },
+            );
         }
 
         adjacency_list
@@ -91,14 +97,20 @@ impl<L, N, E> GraphModel<L, N, E, petgraph::Undirected> {
         let mut adjacency_list = Vec::<Vec<&L>>::new();
 
         while let Some(idx) = nodes_iter.next() {
-            adjacency_list.push(match self
-                .graph
-                .neighbors(idx)
-                .map(|x| self.graph.node_weight(x))
-                .collect::<Option<Vec<&L>>>() {
-                Some(mut a) => { a.reverse(); a },
-                _ => {Vec::<&L>::new()}
-            });
+            adjacency_list.push(
+                match self
+                    .graph
+                    .neighbors(idx)
+                    .map(|x| self.graph.node_weight(x))
+                    .collect::<Option<Vec<&L>>>()
+                {
+                    Some(mut a) => {
+                        a.reverse();
+                        a
+                    }
+                    _ => Vec::<&L>::new(),
+                },
+            );
         }
 
         adjacency_list
@@ -213,7 +225,7 @@ impl<L, N, E, Ty, Ix> GraphModel<L, N, E, Ty, Ix>
 where
     Ty: petgraph::EdgeType,
     Ix: petgraph::adj::IndexType,
-    L: Clone + PartialEq, 
+    L: Clone + PartialEq,
 {
     /// Returns the weight of a node.
     /// Returns None if the index cannot be found.
@@ -250,18 +262,21 @@ where
             Some(w) => {
                 label_old = Some(w.clone());
                 *w = new_label.clone();
-            },
-            None => { return None; },
+            }
+            None => {
+                return None;
+            }
         }
 
         // Update on separate label-weight-vector
         match label_old {
             Some(ref old) => {
-                if let Some((current, _)) = self.data_table_nodes.iter_mut().find(|(l, _)| l == old) {
+                if let Some((current, _)) = self.data_table_nodes.iter_mut().find(|(l, _)| l == old)
+                {
                     *current = new_label;
-                }        
-            },
-            None => {},
+                }
+            }
+            None => {}
         }
         label_old
     }
@@ -275,18 +290,21 @@ where
             Some(w) => {
                 label_old = Some(w.clone());
                 *w = new_label.clone();
-            },
-            None => { return None; },
+            }
+            None => {
+                return None;
+            }
         }
 
         // Update on separate label-weight-vector
         match label_old {
             Some(ref old) => {
-                if let Some((current, _)) = self.data_table_edges.iter_mut().find(|(l, _)| l == old) {
+                if let Some((current, _)) = self.data_table_edges.iter_mut().find(|(l, _)| l == old)
+                {
                     *current = new_label;
-                }        
-            },
-            None => {},
+                }
+            }
+            None => {}
         }
         label_old
     }
