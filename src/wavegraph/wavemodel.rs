@@ -6,8 +6,8 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 use serde_with;
-use std::{collections::HashMap, marker::PhantomData};
-use std::{fmt::Display, hash::Hash};
+use std::collections::HashMap;
+use std::hash::Hash;
 use sucds::bit_vectors::BitVector;
 
 use petgraph::{graph::IndexType, EdgeType};
@@ -89,7 +89,7 @@ where
 
 impl<L, N, E> WaveModel<L, N, E>
 where
-    L: Clone + Ord + Hash + Display,
+    L: Clone + Ord + Hash,
 {
     pub fn new() -> Self {
         todo!()
@@ -164,7 +164,7 @@ impl<L, N, E, Ty, Ix> TryFrom<GraphModel<L, N, E, Ty, Ix>> for WaveModel<L, N, E
 where
     Ty: EdgeType,
     Ix: IndexType,
-    L: Clone + Ord + Hash + Display,
+    L: Clone + Ord + Hash,
 {
     type Error = WaveModelError;
     fn try_from(value: GraphModel<L, N, E, Ty, Ix>) -> Result<Self, Self::Error> {
@@ -173,7 +173,6 @@ where
 
         let mut bitmap = BitVector::new();
         let mut sequence = Vec::new();
-
         for (_, neighbor_labels) in adjacency_list {
             bitmap.push_bit(true);
             for neighbor_label in neighbor_labels {

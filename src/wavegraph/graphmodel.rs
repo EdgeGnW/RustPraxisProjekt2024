@@ -1,9 +1,5 @@
 use super::wavemodel::WaveModel;
-use std::{
-    collections::HashMap,
-    fmt::{Debug, Display},
-    hash::Hash,
-};
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use petgraph::{
     graph::{DefaultIx, DiGraph, EdgeIndex, EdgeIndices, IndexType, NodeIndex, UnGraph},
@@ -79,7 +75,7 @@ impl<L, N, E, Ty, Ix> GraphModel<L, N, E, Ty, Ix>
 where
     Ty: EdgeType,
     Ix: IndexType,
-    L: Clone + Ord + Hash + Display,
+    L: Clone + Ord + Hash,
 {
     pub fn to_adjacency_list(&self) -> Vec<(L, Vec<L>)> {
         let nodes = self.graph.node_indices();
@@ -96,7 +92,7 @@ where
                                                                                     //node_indices
                 match to_nodes.binary_search(&label) {
                     Err(index) => to_nodes.insert(index, label),
-                    Ok(_) => (),
+                    Ok(index) => to_nodes.insert(index, label),
                 }
             }
             adjacency_list.push((from_node, to_nodes))
@@ -229,7 +225,7 @@ where
 impl<L, N, E, Ix> TryFrom<WaveModel<L, N, E>> for GraphModel<L, N, E, petgraph::Directed, Ix>
 where
     Ix: IndexType,
-    L: Clone + Ord + Hash + Display,
+    L: Clone + Ord + Hash,
 {
     type Error = GraphModelError;
     fn try_from(value: WaveModel<L, N, E>) -> Result<Self, Self::Error> {
@@ -289,7 +285,7 @@ where
 impl<L, N, E, Ix> TryFrom<WaveModel<L, N, E>> for GraphModel<L, N, E, petgraph::Undirected, Ix>
 where
     Ix: IndexType,
-    L: Clone + Ord + Hash + Display,
+    L: Clone + Ord + Hash,
 {
     type Error = GraphModelError;
     fn try_from(value: WaveModel<L, N, E>) -> Result<Self, Self::Error> {
@@ -408,8 +404,8 @@ mod test {
             adjacency_list
                 == vec![
                     ("v1", vec!["v2", "v3"]),
-                    ("v2", vec!["v1", "v3"]),
-                    ("v3", vec!["v1", "v2"]),
+                    ("v2", vec!["v1", "v3", "v3"]),
+                    ("v3", vec!["v1", "v2", "v2"]),
                 ]
         );
     }
@@ -486,13 +482,13 @@ mod test {
         match WaveModel::try_from(graph) {
             Ok(wavemodel) => {
                 // sequence
-                let sequence_exp = vec!["v2", "v3", "v1", "v3", "v1", "v2"];
+                let sequence_exp = vec!["v2", "v3", "v1", "v3", "v3", "v1", "v2", "v2"];
                 let sequence_found = wavemodel.sequence().clone();
                 assert!(sequence_exp == sequence_found);
 
                 // bitmap
                 let bitmap_exp = BitVector::from_bits([
-                    true, false, false, true, false, false, true, false, false,
+                    true, false, false, true, false, false, false, true, false, false, false,
                 ]);
                 let bitmap_found = wavemodel.bitmap().clone();
                 assert!(bitmap_exp == bitmap_found);
@@ -506,6 +502,60 @@ mod test {
                 edge_map_expected.insert(("v1", "v3"), 1); // e2
                 edge_map_expected.insert(("v2", "v3"), 2); // e3
                 edge_map_expected.insert(("v3", "v2"), 3); // e4
+                let edge_map_found = wavemodel.to_edge_map();
+                assert!(edge_map_found == edge_map_expected);
+            }
+            Err(e) => {
+                assert!(false);
+            }
+        }
+    }
+
+    #[test]
+    fn check_transformation_from_graphmodel_undirected_parallel_from_one_node() {
+        #![allow(unused_variables)]
+        let mut graph: GraphModel<&str, f64, f64, petgraph::prelude::Undirected> =
+            GraphModel::new_undirected();
+        let v1 = graph.add_node("v1", 1.0);
+        let v2 = graph.add_node("v2", 1.5);
+        let v3 = graph.add_node("v3", 1.0);
+
+        // Edges:
+        // v1 - v2
+        let e1 = graph.add_edge(v1, v2, "e1", 1.0);
+        // v1 - v3
+        let e2 = graph.add_edge(v1, v3, "e2", 1.0);
+        // v2 - v3
+        let e3 = graph.add_edge(v2, v3, "e3", 1.0);
+        // v3 - v2
+        let e4 = graph.add_edge(v3, v2, "e4", 1.0);
+        let e4 = graph.add_edge(v3, v2, "e5", 2.0);
+
+        match WaveModel::try_from(graph) {
+            Ok(wavemodel) => {
+                // sequence
+                let sequence_exp = vec!["v2", "v3", "v1", "v3", "v3", "v3", "v1", "v2", "v2", "v2"];
+                let sequence_found = wavemodel.sequence().clone();
+                assert!(sequence_exp == sequence_found);
+
+                // bitmap
+                let bitmap_exp = BitVector::from_bits([
+                    true, false, false, true, false, false, false, false, true, false, false,
+                    false, false,
+                ]);
+                let bitmap_found = wavemodel.bitmap().clone();
+                assert!(bitmap_exp == bitmap_found);
+
+                // is_directed
+                assert!(!wavemodel.is_directed());
+
+                // edge_map
+                let mut edge_map_expected = HashMap::new();
+                edge_map_expected.insert(("v1", "v2"), 0); // e1
+                edge_map_expected.insert(("v1", "v3"), 1); // e2
+                edge_map_expected.insert(("v2", "v3"), 2); // e3
+                edge_map_expected.insert(("v3", "v2"), 3); // e4
+                edge_map_expected.insert(("v3", "v2"), 4); // e5
                 let edge_map_found = wavemodel.to_edge_map();
                 assert!(edge_map_found == edge_map_expected);
             }
@@ -534,7 +584,7 @@ mod test {
         // v3 - v2
         let e4 = graph.add_edge(v3, v2, "e4", 1.0);
 
-        let mut graph_orig = graph.clone();
+        let graph_orig = graph.clone();
 
         let wavemodel: WaveModel<&str, f64, f64>;
 
