@@ -1,13 +1,16 @@
 use super::graphmodel::GraphModel;
 use super::QWT;
-use std::collections::HashMap;
-use std::hash::Hash;
+use serde::{
+    de::{SeqAccess, Visitor},
+    ser::SerializeSeq,
+    Deserialize, Deserializer, Serialize, Serializer,
+};
+use serde_with;
+use std::{collections::HashMap, marker::PhantomData};
+use std::{fmt::Display, hash::Hash};
 use sucds::bit_vectors::BitVector;
 
-use petgraph::{
-    graph::{edge_index, DefaultIx, DiGraph, EdgeIndex, IndexType, NodeIndex, UnGraph},
-    EdgeType, Graph,
-};
+use petgraph::{graph::IndexType, EdgeType};
 
 #[derive(thiserror::Error, Debug)]
 pub enum WaveModelError {
@@ -24,19 +27,69 @@ pub enum WaveModelError {
 /// Yet because of the way a WaveletMatrix is stored in memory, some operations
 /// like changing or deleting Edges or Nodes can't be performed without a change
 /// into the GraphModel-State.
-pub struct WaveModel<L, N, E> {
+#[serde_with::serde_as]
+#[derive(Serialize, Deserialize)]
+pub struct WaveModel<L, N, E>
+where
+    L: Ord + Hash, //We need this trait bound for the serialization to work
+{
     wavelet_matrix: QWT,
     sequence: Vec<L>, //input sequence. A compressed adjacency list. Needs the bitmap to be read.
+    #[serde(
+        serialize_with = "serialize_bitmap",
+        deserialize_with = "deserialize_bitmap"
+    )]
     bitmap: BitVector, //Here the maximum is (num_of_nodes)²
+    #[serde_as(as = "Vec<(_, _)>")] //HashMaps are kinda akward to parse. Leave it to some crate
     edge_map: HashMap<(L, L), usize>, //The key is a tuple of two Node labels
     data_table_nodes: Vec<(L, N)>,
     data_table_edges: Vec<(L, E)>,
     is_directed: bool,
 }
 
+fn serialize_bitmap<S>(bitvec: &BitVector, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let bits: Vec<bool> = bitvec.iter().collect();
+    let mut seq = serializer.serialize_seq(Some(bits.len()))?;
+    for bit in bits {
+        seq.serialize_element(&bit)?;
+    }
+    seq.end()
+}
+
+fn deserialize_bitmap<'de, D>(deserializer: D) -> Result<BitVector, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct BitVecVisitor;
+
+    impl<'de> Visitor<'de> for BitVecVisitor {
+        type Value = BitVector;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a sequence of bools")
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> Result<BitVector, A::Error>
+        where
+            A: SeqAccess<'de>,
+        {
+            let mut bitvec = BitVector::new();
+            while let Some(bit) = seq.next_element::<bool>()? {
+                bitvec.push_bit(bit);
+            }
+            Ok(bitvec)
+        }
+    }
+
+    deserializer.deserialize_seq(BitVecVisitor)
+}
+
 impl<L, N, E> WaveModel<L, N, E>
 where
-    L: Clone + Ord,
+    L: Clone + Ord + Hash + Display,
 {
     pub fn new() -> Self {
         todo!()
@@ -111,7 +164,7 @@ impl<L, N, E, Ty, Ix> TryFrom<GraphModel<L, N, E, Ty, Ix>> for WaveModel<L, N, E
 where
     Ty: EdgeType,
     Ix: IndexType,
-    L: Clone + Ord + Hash,
+    L: Clone + Ord + Hash + Display,
 {
     type Error = WaveModelError;
     fn try_from(value: GraphModel<L, N, E, Ty, Ix>) -> Result<Self, Self::Error> {

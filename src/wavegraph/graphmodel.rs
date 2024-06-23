@@ -1,5 +1,9 @@
 use super::wavemodel::WaveModel;
-use std::{collections::HashMap, fmt::Debug, hash::Hash};
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Display},
+    hash::Hash,
+};
 
 use petgraph::{
     graph::{DefaultIx, DiGraph, EdgeIndex, EdgeIndices, IndexType, NodeIndex, UnGraph},
@@ -75,7 +79,7 @@ impl<L, N, E, Ty, Ix> GraphModel<L, N, E, Ty, Ix>
 where
     Ty: EdgeType,
     Ix: IndexType,
-    L: Clone + Ord + Hash,
+    L: Clone + Ord + Hash + Display,
 {
     pub fn to_adjacency_list(&self) -> Vec<(L, Vec<L>)> {
         let nodes = self.graph.node_indices();
@@ -196,7 +200,7 @@ where
     /// Returns the bitmap necessary to construct a wavelet matrix ontop of the adjacency list.
     pub fn get_bitmap(&self, adjacency_list: Vec<(L, Vec<L>)>) -> Rank9Sel {
         let mut bit_map = Vec::with_capacity(self.graph.node_count() + self.graph.edge_count());
-        for (v, vs) in adjacency_list {
+        for (_v, vs) in adjacency_list {
             bit_map.push(true);
             for _w in vs {
                 bit_map.push(false);
@@ -225,9 +229,7 @@ where
 impl<L, N, E, Ix> TryFrom<WaveModel<L, N, E>> for GraphModel<L, N, E, petgraph::Directed, Ix>
 where
     Ix: IndexType,
-    L: Clone + Ord + Hash + Debug,
-    N: Debug,
-    E: Debug,
+    L: Clone + Ord + Hash + Display,
 {
     type Error = GraphModelError;
     fn try_from(value: WaveModel<L, N, E>) -> Result<Self, Self::Error> {
@@ -287,7 +289,7 @@ where
 impl<L, N, E, Ix> TryFrom<WaveModel<L, N, E>> for GraphModel<L, N, E, petgraph::Undirected, Ix>
 where
     Ix: IndexType,
-    L: Clone + Ord + Hash,
+    L: Clone + Ord + Hash + Display,
 {
     type Error = GraphModelError;
     fn try_from(value: WaveModel<L, N, E>) -> Result<Self, Self::Error> {
