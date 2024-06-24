@@ -7,7 +7,6 @@ use petgraph::{
 };
 
 use sucds::bit_vectors::{prelude::*, Rank9Sel};
-
 //L - Label | node/edge addressing
 //N - Node data type
 //E - Edge data type
@@ -32,7 +31,7 @@ pub enum GraphModelError {
 /// Has generic support for the label (L), node weight (N) and edge weight (E). The edge type (Ty)
 /// has to be of either directed or undirected type. The index type (Ix) has different unsigned
 /// variants ranging from u8 to u64 and eventually to usize.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct GraphModel<L, N, E, Ty, Ix = DefaultIx>
 where
     Ty: EdgeType,
@@ -260,9 +259,14 @@ where
                         }
                     }
 
-                    let val = edge_map[&(node_label.clone(), neighbor_label.clone())];
-                    let label = data_table_edges.get(val).unwrap().0.clone();
-                    graph.add_edge(current_node_index, current_neighbor_node_index, label);
+                    let val = edge_map.get(&(node_label.clone(), neighbor_label.clone()));
+
+                    if let Some(edges) = val {
+                        for edge in edges {
+                            let label = data_table_edges.get(*edge).unwrap().0.clone();
+                            graph.add_edge(current_node_index, current_neighbor_node_index, label);
+                        }
+                    }
                 }
             }
 
@@ -294,18 +298,60 @@ where
             let edge_map = value.to_edge_map();
             let (data_table_nodes, data_table_edges) = value.into_data_tables();
 
+            let mut temp_nodes_hash_map: HashMap<&L, NodeIndex<Ix>> = HashMap::new();
+
             let mut graph = Graph::with_capacity(data_table_nodes.len(), data_table_edges.len());
 
-            //A LOT OF CLONING :(
-            for (node_label, neighbor_labels) in adjacency_list {
-                let node_index = graph.add_node(node_label.clone());
-                for neighbor_label in neighbor_labels {
-                    let neighbor_node_index = graph.add_node(neighbor_label.clone());
-                    let val = edge_map[&(node_label.clone(), neighbor_label)];
-                    let label = data_table_nodes.get(val).unwrap().0.clone();
-                    let edge_index = graph.update_edge(node_index, neighbor_node_index, label);
+            for (node_label, neighbor_labels) in &adjacency_list {
+                let current_node_index;
+                match temp_nodes_hash_map.get(&node_label) {
+                    Some(node_index) => current_node_index = node_index.clone(),
+                    None => {
+                        temp_nodes_hash_map.insert(&node_label, graph.add_node(node_label.clone()));
+                        current_node_index = temp_nodes_hash_map.get(node_label).unwrap().clone();
+                    }
+                }
 
-                    assert!(val == edge_index.index());
+                for neighbor_label in neighbor_labels {
+                    let current_neighbor_node_index;
+                    match temp_nodes_hash_map.get(&neighbor_label) {
+                        Some(node_index) => current_neighbor_node_index = node_index.clone(),
+                        None => {
+                            temp_nodes_hash_map
+                                .insert(&neighbor_label, graph.add_node(neighbor_label.clone()));
+                            current_neighbor_node_index =
+                                temp_nodes_hash_map.get(neighbor_label).unwrap().clone();
+                        }
+                    }
+
+                    let val = edge_map.get(&(node_label.clone(), neighbor_label.clone()));
+
+                    if let Some(edges) = val {
+                        for edge in edges {
+                            let label = data_table_edges.get(*edge).unwrap().0.clone();
+                            //TODO: Possibly change this to something faster. Computes in O(e’) time, where e’ is the number of edges connected to a (and b, if the graph edges are undirected).
+                            let possible_edge =
+                                graph.find_edge(current_node_index, current_neighbor_node_index);
+                            match possible_edge {
+                                Some(edge) => {
+                                    if &label != graph.edge_weight(edge).unwrap() {
+                                        graph.add_edge(
+                                            current_node_index,
+                                            current_neighbor_node_index,
+                                            label,
+                                        );
+                                    }
+                                }
+                                None => {
+                                    graph.add_edge(
+                                        current_node_index,
+                                        current_neighbor_node_index,
+                                        label,
+                                    );
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -447,10 +493,10 @@ mod test {
 
                 // edge_map
                 let mut edge_map_expected = HashMap::new();
-                edge_map_expected.insert(("v1", "v2"), 0); // e1
-                edge_map_expected.insert(("v1", "v3"), 1); // e2
-                edge_map_expected.insert(("v2", "v3"), 2); // e3
-                edge_map_expected.insert(("v3", "v2"), 3); // e4
+                edge_map_expected.insert(("v1", "v2"), vec![0]); // e1
+                edge_map_expected.insert(("v1", "v3"), vec![1]); // e2
+                edge_map_expected.insert(("v2", "v3"), vec![2]); // e3
+                edge_map_expected.insert(("v3", "v2"), vec![3]); // e4
                 let edge_map_found = wavemodel.to_edge_map();
                 assert!(edge_map_found == edge_map_expected);
             }
@@ -498,10 +544,10 @@ mod test {
 
                 // edge_map
                 let mut edge_map_expected = HashMap::new();
-                edge_map_expected.insert(("v1", "v2"), 0); // e1
-                edge_map_expected.insert(("v1", "v3"), 1); // e2
-                edge_map_expected.insert(("v2", "v3"), 2); // e3
-                edge_map_expected.insert(("v3", "v2"), 3); // e4
+                edge_map_expected.insert(("v1", "v2"), vec![0]); // e1
+                edge_map_expected.insert(("v1", "v3"), vec![1]); // e2
+                edge_map_expected.insert(("v2", "v3"), vec![2]); // e3
+                edge_map_expected.insert(("v3", "v2"), vec![3]); // e4
                 let edge_map_found = wavemodel.to_edge_map();
                 assert!(edge_map_found == edge_map_expected);
             }
@@ -529,7 +575,7 @@ mod test {
         let e3 = graph.add_edge(v2, v3, "e3", 1.0);
         // v3 - v2
         let e4 = graph.add_edge(v3, v2, "e4", 1.0);
-        let e4 = graph.add_edge(v3, v2, "e5", 2.0);
+        let e5 = graph.add_edge(v3, v2, "e5", 2.0);
 
         match WaveModel::try_from(graph) {
             Ok(wavemodel) => {
@@ -551,12 +597,12 @@ mod test {
 
                 // edge_map
                 let mut edge_map_expected = HashMap::new();
-                edge_map_expected.insert(("v1", "v2"), 0); // e1
-                edge_map_expected.insert(("v1", "v3"), 1); // e2
-                edge_map_expected.insert(("v2", "v3"), 2); // e3
-                edge_map_expected.insert(("v3", "v2"), 3); // e4
-                edge_map_expected.insert(("v3", "v2"), 4); // e5
+                edge_map_expected.insert(("v1", "v2"), vec![0]); // e1
+                edge_map_expected.insert(("v1", "v3"), vec![1]); // e2
+                edge_map_expected.insert(("v2", "v3"), vec![2]); // e3
+                edge_map_expected.insert(("v3", "v2"), vec![3, 4]); // e4 && e5
                 let edge_map_found = wavemodel.to_edge_map();
+                dbg!(&edge_map_found);
                 assert!(edge_map_found == edge_map_expected);
             }
             Err(e) => {
@@ -609,7 +655,63 @@ mod test {
 
                 assert!(adjacency_list_found == adjacency_list_expected);
             }
-            Err(e) => {}
+            Err(e) => {
+                assert!(false);
+            }
+        }
+    }
+
+    #[test]
+    fn check_transformation_from_wavemodel_undirected() {
+        #![allow(unused_variables)]
+        let mut graph: GraphModel<&str, f64, f64, petgraph::prelude::Undirected> =
+            GraphModel::new_undirected();
+        let v1 = graph.add_node("v1", 1.0);
+        let v2 = graph.add_node("v2", 1.5);
+        let v3 = graph.add_node("v3", 1.0);
+
+        // Edges:
+        // v1 - v2
+        let e1 = graph.add_edge(v1, v2, "e1", 1.0);
+        // v1 - v3
+        let e2 = graph.add_edge(v1, v3, "e2", 1.0);
+        // v2 - v3
+        let e3 = graph.add_edge(v2, v3, "e3", 1.0);
+        // v3 - v2
+        let e4 = graph.add_edge(v3, v2, "e4", 1.0);
+
+        let graph_orig = graph.clone();
+
+        let wavemodel: WaveModel<&str, f64, f64>;
+
+        match WaveModel::try_from(graph) {
+            Ok(w) => {
+                wavemodel = w;
+            }
+            Err(e) => {
+                wavemodel = WaveModel::new();
+                assert!(false);
+            }
+        }
+
+        match GraphModel::<&str, f64, f64, petgraph::prelude::Undirected>::try_from(wavemodel) {
+            Ok(graphmodel) => {
+                let adjacency_list_expected = vec![
+                    ("v1", vec!["v2", "v3"]),
+                    ("v2", vec!["v1", "v3", "v3"]),
+                    ("v3", vec!["v1", "v2", "v2"]),
+                ];
+                let adjacency_list_found = graphmodel.to_adjacency_list();
+                dbg!(&adjacency_list_found);
+                dbg!(&adjacency_list_expected);
+                assert!(adjacency_list_found == adjacency_list_expected);
+                let dt = graphmodel.into_data_tables();
+                dbg!(dt.1);
+            }
+            Err(e) => {
+                dbg!(e);
+                assert!(false);
+            }
         }
     }
 }

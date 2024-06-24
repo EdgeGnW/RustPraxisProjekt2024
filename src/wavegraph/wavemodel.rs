@@ -28,7 +28,7 @@ pub enum WaveModelError {
 /// like changing or deleting Edges or Nodes can't be performed without a change
 /// into the GraphModel-State.
 #[serde_with::serde_as]
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct WaveModel<L, N, E>
 where
     L: Ord + Hash, //We need this trait bound for the serialization to work
@@ -41,7 +41,7 @@ where
     )]
     bitmap: BitVector, //Here the maximum is (num_of_nodes)²
     #[serde_as(as = "Vec<(_, _)>")] //HashMaps are kinda akward to parse. Leave it to some crate
-    edge_map: HashMap<(L, L), usize>, //The key is a tuple of two Node labels
+    edge_map: HashMap<(L, L), Vec<usize>>, //The key is a tuple of two Node labels
     data_table_nodes: Vec<(L, N)>,
     data_table_edges: Vec<(L, E)>,
     is_directed: bool,
@@ -107,7 +107,7 @@ where
         &self.bitmap
     }
 
-    pub fn to_edge_map(&self) -> HashMap<(L, L), usize> {
+    pub fn to_edge_map(&self) -> HashMap<(L, L), Vec<usize>> {
         self.edge_map.clone()
     }
 
@@ -169,7 +169,7 @@ where
     type Error = WaveModelError;
     fn try_from(value: GraphModel<L, N, E, Ty, Ix>) -> Result<Self, Self::Error> {
         let adjacency_list = value.to_adjacency_list();
-        let mut edge_map = HashMap::new();
+        let mut edge_map: HashMap<(L, L), Vec<usize>> = HashMap::new();
 
         let mut bitmap = BitVector::new();
         let mut sequence = Vec::new();
@@ -194,13 +194,19 @@ where
                         None => return Err(WaveModelError::ConversionError),
                     };
 
-                    edge_map.insert((a_label, b_label), edge_index.index());
+                    let label_tupel = (a_label, b_label);
+                    let possible_edge = edge_map.get_mut(&label_tupel);
+                    match possible_edge {
+                        Some(edge) => edge.push(edge_index.index()),
+                        None => {
+                            edge_map.insert(label_tupel, Vec::from([edge_index.index()]));
+                        }
+                    }
                 }
                 None => return Err(WaveModelError::InvalidEdge),
             }
         }
 
-        //TODO: Check the size of the alphabet and then choose the appropriate QWT struct
         let sequence_indices = (0..sequence.len()).collect::<Vec<usize>>();
 
         let wavelet_matrix = QWT::QWT256(qwt::QWT256::from(sequence_indices));
