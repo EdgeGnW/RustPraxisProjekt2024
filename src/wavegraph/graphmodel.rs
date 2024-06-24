@@ -194,7 +194,7 @@ where
     }
 
     /// Returns the bitmap necessary to construct a wavelet matrix ontop of the adjacency list.
-    pub fn get_bitmap(&self, adjacency_list: Vec<(L, Vec<L>)>) -> Rank9Sel {
+    pub fn to_bitmap(&self, adjacency_list: Vec<(L, Vec<L>)>) -> Rank9Sel {
         let mut bit_map = Vec::with_capacity(self.graph.node_count() + self.graph.edge_count());
         for (v, vs) in adjacency_list {
             bit_map.push(true);
@@ -442,7 +442,7 @@ mod test {
                 let bitmap_exp =
                     BitVector::from_bits([true, false, false, true, false, true, false]);
                 let bitmap_found = wavemodel.bitmap().clone();
-                assert!(bitmap_exp == bitmap_found);
+                assert!(bitmap_exp == *bitmap_found.bit_vector());
 
                 // is_directed
                 assert!(wavemodel.is_directed());
@@ -493,7 +493,7 @@ mod test {
                     true, false, false, true, false, false, true, false, false,
                 ]);
                 let bitmap_found = wavemodel.bitmap().clone();
-                assert!(bitmap_exp == bitmap_found);
+                assert!(bitmap_exp == *bitmap_found.bit_vector());
 
                 // is_directed
                 assert!(!wavemodel.is_directed());
