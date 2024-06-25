@@ -1,5 +1,6 @@
 use super::graphmodel::GraphModel;
 use super::QWT;
+use qwt::{AccessUnsigned, RankUnsigned, SelectUnsigned};
 use std::collections::HashMap;
 use std::hash::Hash;
 use sucds::bit_vectors::BitVector;
@@ -104,6 +105,27 @@ where
         ));
 
         adjacency_list
+    }
+
+    pub fn access(&self, idx: usize) -> Option<usize> {
+        match self.wavelet_matrix() {
+            QWT::QWT256(matrix) => matrix.get(idx),
+            QWT::QWT512(matrix) => matrix.get(idx),
+        }
+    }
+
+    pub fn rank(&self, sym: usize, idx: usize) -> Option<usize> {
+        match self.wavelet_matrix() {
+            QWT::QWT256(matrix) => matrix.rank(sym, idx),
+            QWT::QWT512(matrix) => matrix.rank(sym, idx),
+        }
+    }
+
+    pub fn select(&self, sym: usize, idx: usize) -> Option<usize> {
+        match self.wavelet_matrix() {
+            QWT::QWT256(matrix) => matrix.select(sym, idx),
+            QWT::QWT512(matrix) => matrix.select(sym, idx),
+        }
     }
 }
 
