@@ -2,7 +2,7 @@ use super::graphmodel::GraphModel;
 use super::QWT;
 use std::collections::HashMap;
 use std::hash::Hash;
-use sucds::bit_vectors::BitVector;
+use sucds::bit_vectors::{BitVector, Rank9Sel};
 
 use petgraph::{
     graph::{edge_index, DefaultIx, DiGraph, EdgeIndex, IndexType, NodeIndex, UnGraph},
@@ -27,7 +27,7 @@ pub enum WaveModelError {
 pub struct WaveModel<L, N, E> {
     wavelet_matrix: QWT,
     sequence: Vec<L>, //input sequence. A compressed adjacency list. Needs the bitmap to be read.
-    bitmap: BitVector, //Here the maximum is (num_of_nodes)²
+    bitmap: Rank9Sel, //Here the maximum is (num_of_nodes)²
     edge_map: HashMap<(L, L), usize>, //The key is a tuple of two Node labels
     data_table_nodes: Vec<(L, N)>,
     data_table_edges: Vec<(L, E)>,
@@ -50,7 +50,7 @@ where
         &self.sequence
     }
 
-    pub fn bitmap(&self) -> &sucds::bit_vectors::BitVector {
+    pub fn bitmap(&self) -> &Rank9Sel {
         &self.bitmap
     }
 
@@ -79,7 +79,7 @@ where
         let mut sequence_iterator = self.sequence().iter();
         let mut current_sequence: Vec<L> = Vec::new();
         let mut node_iterator = self.data_table_nodes.iter();
-        let mut bitmap_iter = self.bitmap().iter().peekable();
+        let mut bitmap_iter = self.bitmap().bit_vector().iter().peekable();
 
         while let Some(is_node) = bitmap_iter.next() {
             if !is_node {
@@ -118,16 +118,19 @@ where
         let adjacency_list = value.to_adjacency_list();
         let mut edge_map = HashMap::new();
 
-        let mut bitmap = BitVector::new();
+        let mut bitmap_vec = BitVector::new();
+
         let mut sequence = Vec::new();
 
         for (_, neighbor_labels) in adjacency_list {
-            bitmap.push_bit(true);
+            bitmap_vec.push_bit(true);
             for neighbor_label in neighbor_labels {
-                bitmap.push_bit(false);
+                bitmap_vec.push_bit(false);
                 sequence.push(neighbor_label);
             }
         }
+
+        let bitmap = Rank9Sel::new(bitmap_vec);
 
         for edge_index in value.edge_indicies() {
             match value.edge_endpoints(edge_index) {

@@ -23,6 +23,8 @@ pub enum GraphModelError {
     },
     #[error("NODE NOT FOUND")]
     NodeNotFound,
+    #[error("EDGE NOT FOUND")]
+    EdgeNotFound,
 }
 
 /// The main model for everything (pet-)graph related. Handles the underlying graph as well
@@ -194,7 +196,7 @@ where
     }
 
     /// Returns the bitmap necessary to construct a wavelet matrix ontop of the adjacency list.
-    pub fn get_bitmap(&self, adjacency_list: Vec<(L, Vec<L>)>) -> Rank9Sel {
+    pub fn to_bitmap(&self, adjacency_list: Vec<(L, Vec<L>)>) -> Rank9Sel {
         let mut bit_map = Vec::with_capacity(self.graph.node_count() + self.graph.edge_count());
         for (v, vs) in adjacency_list {
             bit_map.push(true);
@@ -219,6 +221,74 @@ where
         //Question how do we encode this into a graph?
         // Implementation lies in WaveModel::from
         todo!()
+    }
+
+    /// Provides the option to update a label on some node.
+    /// Returns a NodeNotFound error, if the index cannot be found.
+    ///
+    /// Searches inside of the underlying petrgraph for the node as provided by its index and
+    /// gets its label reference. Breaks and returns an error if the node cannot be found.
+    /// Afterwards searches inside of the corresponding label-to-weight-table with the found label
+    /// and only then updates the label on both structures.
+    ///
+    /// # Examples
+    /// ```
+    /// // TODO: Give example here
+    /// ```
+    pub fn update_node_label(
+        &mut self,
+        idx: NodeIndex<Ix>,
+        new_label: L,
+    ) -> Result<NodeIndex<Ix>, GraphModelError> {
+        // Look for label on petgraph
+        if let Some(label_ref) = self.graph.node_weight_mut(idx) {
+            // Find label in data table
+            let mut data_table_iter = self.data_table_nodes.iter_mut();
+            while let Some((label, _)) = data_table_iter.next() {
+                if *label_ref == *label {
+                    // Finally change the label
+                    *label = new_label.clone();
+                    *label_ref = new_label.clone();
+                    return Ok(idx);
+                }
+            }
+        }
+        // Otherwhise return NodeNotFound error!
+        return Err(GraphModelError::NodeNotFound);
+    }
+
+    /// Provides the option to update a label on some edge.
+    /// Returns a EdgeNotFound error, if the index cannot be found.
+    ///
+    /// Searches inside of the underlying petrgraph for the edge as provided by its index and
+    /// gets its label reference. Breaks and returns an error if the edge cannot be found.
+    /// Afterwards searches inside of the corresponding label-to-weight-table with the found label
+    /// and only then updates the label on both structures.
+    ///
+    /// # Examples
+    /// ```
+    /// // TODO: Give example here
+    /// ```
+    pub fn update_edge_label(
+        &mut self,
+        idx: EdgeIndex<Ix>,
+        new_label: L,
+    ) -> Result<EdgeIndex<Ix>, GraphModelError> {
+        // Look for label on petgraph
+        if let Some(label_ref) = self.graph.edge_weight_mut(idx) {
+            // Find label in data table
+            let mut data_table_iter = self.data_table_edges.iter_mut();
+            while let Some((label, _)) = data_table_iter.next() {
+                if *label_ref == *label {
+                    // Finally change the label
+                    *label = new_label.clone();
+                    *label_ref = new_label.clone();
+                    return Ok(idx);
+                }
+            }
+        }
+        // Otherwhise return EdgeNotFound error!
+        return Err(GraphModelError::EdgeNotFound);
     }
 }
 

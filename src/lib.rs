@@ -4,8 +4,9 @@ mod test {
     use crate::wavegraph::GraphModel;
     use crate::wavegraph::WaveModel;
     use petgraph::graph::DefaultIx;
+    use sucds::Serializable;
     use std::collections::HashMap;
-    use sucds::bit_vectors::{BitVector, Rank9Sel};
+    use sucds::bit_vectors::{prelude::*, Rank9Sel};
 
     fn create_directed_graph() -> GraphModel<String, f32, f32, petgraph::Directed, DefaultIx> {
         #![allow(unused_variables)]
@@ -138,8 +139,8 @@ mod test {
                 );
 
                 // bitmap
-                let bitmap_exp = BitVector::from_bits([
-                    true, false, false, true, true, false, false, false, true, false, false,
+                let bitmap_exp = Rank9Sel::from_bits([
+                    true, false, false, true, false, true, false
                 ]);
                 let bitmap_found = wavemodel.bitmap().clone();
                 assert!(
@@ -201,7 +202,7 @@ mod test {
                 );
 
                 // bitmap
-                let bitmap_exp = BitVector::from_bits([
+                let bitmap_exp = Rank9Sel::from_bits([
                     true, false, false, true, false, false, true, false, false,
                 ]);
                 let bitmap_found = wavemodel.bitmap().clone();
@@ -303,7 +304,7 @@ mod test {
         #![allow(unused_variables)]
         let graph = create_directed_graph();
         let adjacency_list = graph.to_adjacency_list();
-        let bit_map = graph.get_bitmap(adjacency_list);
+        let bit_map = graph.to_bitmap(adjacency_list);
         assert!(
             bit_map.len() == 11,
             "Bit Map has the wrong length! Supposed to be 11 but was {}",
