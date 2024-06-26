@@ -22,6 +22,8 @@ pub enum GraphModelError {
     },
     #[error("NODE NOT FOUND")]
     NodeNotFound,
+    #[error("EDGE NOT FOUND")]
+    EdgeNotFound,
 }
 
 /// The main model for everything (pet-)graph related. Handles the underlying graph as well
@@ -193,7 +195,7 @@ where
     }
 
     /// Returns the bitmap necessary to construct a wavelet matrix ontop of the adjacency list.
-    pub fn get_bitmap(&self, adjacency_list: Vec<(L, Vec<L>)>) -> Rank9Sel {
+    pub fn to_bitmap(&self, adjacency_list: Vec<(L, Vec<L>)>) -> Rank9Sel {
         let mut bit_map = Vec::with_capacity(self.graph.node_count() + self.graph.edge_count());
         for (_v, vs) in adjacency_list {
             bit_map.push(true);
@@ -218,6 +220,74 @@ where
         //Question how do we encode this into a graph?
         // Implementation lies in WaveModel::from
         todo!()
+    }
+
+    /// Provides the option to update a label on some node.
+    /// Returns a NodeNotFound error, if the index cannot be found.
+    ///
+    /// Searches inside of the underlying petrgraph for the node as provided by its index and
+    /// gets its label reference. Breaks and returns an error if the node cannot be found.
+    /// Afterwards searches inside of the corresponding label-to-weight-table with the found label
+    /// and only then updates the label on both structures.
+    ///
+    /// # Examples
+    /// ```
+    /// // TODO: Give example here
+    /// ```
+    pub fn update_node_label(
+        &mut self,
+        idx: NodeIndex<Ix>,
+        new_label: L,
+    ) -> Result<NodeIndex<Ix>, GraphModelError> {
+        // Look for label on petgraph
+        if let Some(label_ref) = self.graph.node_weight_mut(idx) {
+            // Find label in data table
+            let mut data_table_iter = self.data_table_nodes.iter_mut();
+            while let Some((label, _)) = data_table_iter.next() {
+                if *label_ref == *label {
+                    // Finally change the label
+                    *label = new_label.clone();
+                    *label_ref = new_label.clone();
+                    return Ok(idx);
+                }
+            }
+        }
+        // Otherwhise return NodeNotFound error!
+        return Err(GraphModelError::NodeNotFound);
+    }
+
+    /// Provides the option to update a label on some edge.
+    /// Returns a EdgeNotFound error, if the index cannot be found.
+    ///
+    /// Searches inside of the underlying petrgraph for the edge as provided by its index and
+    /// gets its label reference. Breaks and returns an error if the edge cannot be found.
+    /// Afterwards searches inside of the corresponding label-to-weight-table with the found label
+    /// and only then updates the label on both structures.
+    ///
+    /// # Examples
+    /// ```
+    /// // TODO: Give example here
+    /// ```
+    pub fn update_edge_label(
+        &mut self,
+        idx: EdgeIndex<Ix>,
+        new_label: L,
+    ) -> Result<EdgeIndex<Ix>, GraphModelError> {
+        // Look for label on petgraph
+        if let Some(label_ref) = self.graph.edge_weight_mut(idx) {
+            // Find label in data table
+            let mut data_table_iter = self.data_table_edges.iter_mut();
+            while let Some((label, _)) = data_table_iter.next() {
+                if *label_ref == *label {
+                    // Finally change the label
+                    *label = new_label.clone();
+                    *label_ref = new_label.clone();
+                    return Ok(idx);
+                }
+            }
+        }
+        // Otherwhise return EdgeNotFound error!
+        return Err(GraphModelError::EdgeNotFound);
     }
 }
 
@@ -378,178 +448,163 @@ mod test {
     use std::collections::HashMap;
     use sucds::bit_vectors::BitVector;
 
+    fn create_directed_test_graph() -> GraphModel<String, f64, f64, petgraph::prelude::Directed> {
+        let mut graph: GraphModel<String, f64, f64, petgraph::prelude::Directed> =
+            GraphModel::new_directed();
+        let _v1 = graph.add_node("v1".to_string(), 1.0);
+        let _v3 = graph.add_node("v3".to_string(), 1.0);
+        let _v2 = graph.add_node("v2".to_string(), 1.5);
+        let _v4 = graph.add_node("v4".to_string(), 2.0);
+
+        // Edges:
+        // _v1 -> _v2
+        let _e1 = graph.add_edge(_v1, _v2, "e1".to_string(), 1.0);
+        // _v1 -> _v3
+        let _e2 = graph.add_edge(_v1, _v3, "e2".to_string(), 1.0);
+        // _v3 -> _v1
+        let _e3 = graph.add_edge(_v3, _v1, "e3".to_string(), 1.0);
+        // _v3 -> _v2
+        let _e4 = graph.add_edge(_v3, _v2, "e4".to_string(), 1.0);
+        // _v3 -> _v4
+        let _e5 = graph.add_edge(_v3, _v4, "e5".to_string(), 1.0);
+        // _v4 -> _v1
+        let _e6 = graph.add_edge(_v4, _v1, "e6".to_string(), 1.0);
+        // _v4 -> _v2
+        let _e7 = graph.add_edge(_v4, _v2, "e7".to_string(), 1.0);
+
+        graph.clone()
+    }
+
+    fn create_undirected_test_graph() -> GraphModel<String, f64, f64, petgraph::prelude::Undirected>
+    {
+        let mut graph: GraphModel<String, f64, f64, petgraph::prelude::Undirected> =
+            GraphModel::new_undirected();
+        let _v1 = graph.add_node("v1".to_string(), 1.0);
+        let _v3 = graph.add_node("v3".to_string(), 1.0);
+        let _v2 = graph.add_node("v2".to_string(), 1.5);
+
+        // Edges:
+        // _v1 -> _v2
+        let _e1 = graph.add_edge(_v1, _v2, "e1".to_string(), 1.0);
+        // _v1 -> _v3
+        let _e2 = graph.add_edge(_v1, _v3, "e2".to_string(), 1.0);
+        // _v2 -> _v3
+        let _e3 = graph.add_edge(_v2, _v3, "e3".to_string(), 1.0);
+        // _v3 -> _v2
+        let _e4 = graph.add_edge(_v3, _v2, "e4".to_string(), 1.0);
+
+        graph.clone()
+    }
+
     #[test]
     fn check_adjacency_list_directed() {
         #![allow(unused_variables)]
-        let mut graph: GraphModel<&str, f64, f64, petgraph::prelude::Directed> =
-            GraphModel::new_directed();
-        let v1 = graph.add_node("v1", 1.0);
-        let v3 = graph.add_node("v3", 1.0);
-        let v2 = graph.add_node("v2", 1.5);
-        let v4 = graph.add_node("v4", 2.0);
-
-        // Edges:
-        // v1 -> v2
-        let e1 = graph.add_edge(v1, v2, "e1", 1.0);
-        // v1 -> v3
-        let e2 = graph.add_edge(v1, v3, "e2", 1.0);
-        // v3 -> v1
-        let e3 = graph.add_edge(v3, v1, "e3", 1.0);
-        // v3 -> v2
-        let e4 = graph.add_edge(v3, v2, "e4", 1.0);
-        // v3 -> v4
-        let e5 = graph.add_edge(v3, v4, "e5", 1.0);
-        // v4 -> v1
-        let e6 = graph.add_edge(v4, v1, "e6", 1.0);
-        // v4 -> v2
-        let e7 = graph.add_edge(v4, v2, "e7", 1.0);
-
-        let adjacency_list = graph.to_adjacency_list();
+        let graph = create_directed_test_graph();
+        let found = graph.to_adjacency_list();
+        let expected = vec![
+            ("v1".to_string(), vec!["v2".to_string(), "v3".to_string()]),
+            (
+                "v3".to_string(),
+                vec!["v1".to_string(), "v2".to_string(), "v4".to_string()],
+            ),
+            ("v2".to_string(), vec![]),
+            ("v4".to_string(), vec!["v1".to_string(), "v2".to_string()]),
+        ];
 
         assert!(
-            adjacency_list.len() == 4,
-            "Adjacency list has the wrong length!"
+            found.len() == 4,
+            "Adjacency list has the wrong length!\nExpected: 4\nFound: {0}",
+            found.len()
         );
         assert!(
-            adjacency_list
-                == vec![
-                    ("v1", vec!["v2", "v3"]),
-                    ("v3", vec!["v1", "v2", "v4"]),
-                    ("v2", vec![]),
-                    ("v4", vec!["v1", "v2"]),
-                ]
+            found == expected,
+            "Adjacency list not as expected!\nExpected: {0:?}\nFound: {1:?}",
+            expected,
+            found
         );
     }
 
     #[test]
     fn check_adjacency_list_undirected() {
         #![allow(unused_variables)]
-        let mut graph: GraphModel<&str, f64, f64, petgraph::prelude::Undirected> =
-            GraphModel::new_undirected();
-        let v1 = graph.add_node("v1", 1.0);
-        let v2 = graph.add_node("v2", 1.5);
-        let v3 = graph.add_node("v3", 1.0);
-
-        // Edges:
-        // v1 - v2
-        let e1 = graph.add_edge(v1, v2, "e1", 1.0);
-        // v1 - v3
-        let e2 = graph.add_edge(v1, v3, "e2", 1.0);
-        let e3 = graph.add_edge(v2, v3, "e3", 1.0);
-        // v3 - v2
-        let e4 = graph.add_edge(v3, v2, "e4", 1.0);
-
-        let adjacency_list = graph.to_adjacency_list();
+        let graph = create_undirected_test_graph();
+        let found = graph.to_adjacency_list();
+        let expected = vec![
+            ("v1".to_string(), vec!["v2".to_string(), "v3".to_string()]),
+            ("v3".to_string(), vec!["v1".to_string(), "v2".to_string()]),
+            ("v2".to_string(), vec!["v1".to_string(), "v3".to_string()]),
+        ];
 
         assert!(
-            adjacency_list.len() == 3,
-            "Adjacency list has the wrong length!"
+            found.len() == 3,
+            "Adjacency list has the wrong length!\nExpected: 3\nFound: {0}",
+            found.len()
         );
 
         assert!(
-            adjacency_list
-                == vec![
-                    ("v1", vec!["v2", "v3"]),
-                    ("v2", vec!["v1", "v3", "v3"]),
-                    ("v3", vec!["v1", "v2", "v2"]),
-                ]
+            found == expected,
+            "Adjacency list not as expected!\nExpected: {0:?}\nFound: {1:?}",
+            expected,
+            found
         );
     }
 
     #[test]
     fn check_transformation_from_graphmodel_directed() {
         #![allow(unused_variables)]
-        let mut graph: GraphModel<&str, f64, f64, petgraph::prelude::Directed> =
-            GraphModel::new_directed();
-        let v1 = graph.add_node("v1", 1.0);
-        let v2 = graph.add_node("v2", 1.5);
-        let v3 = graph.add_node("v3", 1.0);
-
-        // Edges:
-        // v1 - v2
-        let e1 = graph.add_edge(v1, v2, "e1", 1.0);
-        // v1 - v3
-        let e2 = graph.add_edge(v1, v3, "e2", 1.0);
-        // v2 - v3
-        let e3 = graph.add_edge(v2, v3, "e3", 1.0);
-        // v3 - v2
-        let e4 = graph.add_edge(v3, v2, "e4", 1.0);
+        let graph = create_directed_test_graph();
 
         match WaveModel::try_from(graph) {
             Ok(wavemodel) => {
                 // sequence
-                let sequence_exp = vec!["v2", "v3", "v3", "v2"];
+                let sequence_exp = vec![
+                    "v2".to_string(),
+                    "v3".to_string(),
+                    "v1".to_string(),
+                    "v2".to_string(),
+                    "v4".to_string(),
+                    "v1".to_string(),
+                    "v2".to_string(),
+                ];
                 let sequence_found = wavemodel.sequence().clone();
-                assert!(sequence_exp == sequence_found);
-
-                // bitmap
-                let bitmap_exp =
-                    BitVector::from_bits([true, false, false, true, false, true, false]);
-                let bitmap_found = wavemodel.bitmap().clone();
-                assert!(bitmap_exp == bitmap_found);
-
-                // is_directed
-                assert!(wavemodel.is_directed());
-
-                // edge_map
-                let mut edge_map_expected = HashMap::new();
-                edge_map_expected.insert(("v1", "v2"), vec![0]); // e1
-                edge_map_expected.insert(("v1", "v3"), vec![1]); // e2
-                edge_map_expected.insert(("v2", "v3"), vec![2]); // e3
-                edge_map_expected.insert(("v3", "v2"), vec![3]); // e4
-                let edge_map_found = wavemodel.to_edge_map();
-                assert!(edge_map_found == edge_map_expected);
-            }
-            Err(e) => {
-                assert!(false);
-            }
-        }
-    }
-
-    #[test]
-    fn check_transformation_from_graphmodel_undirected() {
-        #![allow(unused_variables)]
-        let mut graph: GraphModel<&str, f64, f64, petgraph::prelude::Undirected> =
-            GraphModel::new_undirected();
-        let v1 = graph.add_node("v1", 1.0);
-        let v2 = graph.add_node("v2", 1.5);
-        let v3 = graph.add_node("v3", 1.0);
-
-        // Edges:
-        // v1 - v2
-        let e1 = graph.add_edge(v1, v2, "e1", 1.0);
-        // v1 - v3
-        let e2 = graph.add_edge(v1, v3, "e2", 1.0);
-        // v2 - v3
-        let e3 = graph.add_edge(v2, v3, "e3", 1.0);
-        // v3 - v2
-        let e4 = graph.add_edge(v3, v2, "e4", 1.0);
-
-        match WaveModel::try_from(graph) {
-            Ok(wavemodel) => {
-                // sequence
-                let sequence_exp = vec!["v2", "v3", "v1", "v3", "v3", "v1", "v2", "v2"];
-                let sequence_found = wavemodel.sequence().clone();
-                assert!(sequence_exp == sequence_found);
+                assert!(
+                    sequence_exp == sequence_found,
+                    "Sequence was not as expected!\nExpected: {0:?}\nFound: {1:?}",
+                    sequence_exp,
+                    sequence_found
+                );
 
                 // bitmap
                 let bitmap_exp = BitVector::from_bits([
-                    true, false, false, true, false, false, false, true, false, false, false,
+                    true, false, false, true, false, false, false, true, true, false, false,
                 ]);
                 let bitmap_found = wavemodel.bitmap().clone();
-                assert!(bitmap_exp == bitmap_found);
+                assert!(
+                    bitmap_exp == bitmap_found,
+                    "Bitmap was not as expected!\nExpected: {0:?}\nFound: {1:?}",
+                    bitmap_exp,
+                    bitmap_found
+                );
 
                 // is_directed
-                assert!(!wavemodel.is_directed());
+                assert!(wavemodel.is_directed(), "Wavemodel is no longer directed!");
 
                 // edge_map
                 let mut edge_map_expected = HashMap::new();
-                edge_map_expected.insert(("v1", "v2"), vec![0]); // e1
-                edge_map_expected.insert(("v1", "v3"), vec![1]); // e2
-                edge_map_expected.insert(("v2", "v3"), vec![2]); // e3
-                edge_map_expected.insert(("v3", "v2"), vec![3]); // e4
+                edge_map_expected.insert(("v1".to_string(), "v2".to_string()), 0); // e1
+                edge_map_expected.insert(("v1".to_string(), "v3".to_string()), 1); // e2
+                edge_map_expected.insert(("v3".to_string(), "v1".to_string()), 2); // e3
+                edge_map_expected.insert(("v3".to_string(), "v2".to_string()), 3); // e4
+                edge_map_expected.insert(("v3".to_string(), "v4".to_string()), 4); // e5
+                edge_map_expected.insert(("v4".to_string(), "v1".to_string()), 5); // e6
+                edge_map_expected.insert(("v4".to_string(), "v2".to_string()), 6); // e7
                 let edge_map_found = wavemodel.to_edge_map();
-                assert!(edge_map_found == edge_map_expected);
+                assert!(
+                    edge_map_found == edge_map_expected,
+                    "Edge map was not as expected!\nExpected: {0:?}\nFound: {1:?}",
+                    edge_map_expected,
+                    edge_map_found
+                );
             }
             Err(e) => {
                 assert!(false);
@@ -582,7 +637,12 @@ mod test {
                 // sequence
                 let sequence_exp = vec!["v2", "v3", "v1", "v3", "v3", "v3", "v1", "v2", "v2", "v2"];
                 let sequence_found = wavemodel.sequence().clone();
-                assert!(sequence_exp == sequence_found);
+                assert!(
+                    sequence_exp == sequence_found,
+                    "Sequence was not as expected!\nExpected: {0:?}\nFound: {1:?}",
+                    sequence_exp,
+                    sequence_found
+                );
 
                 // bitmap
                 let bitmap_exp = BitVector::from_bits([
@@ -590,20 +650,29 @@ mod test {
                     false, false,
                 ]);
                 let bitmap_found = wavemodel.bitmap().clone();
-                assert!(bitmap_exp == bitmap_found);
+                assert!(
+                    bitmap_exp == bitmap_found,
+                    "Bitmap was not as expected!\nExpected: {0:?}\nFound: {1:?}",
+                    bitmap_exp,
+                    bitmap_found
+                );
 
                 // is_directed
-                assert!(!wavemodel.is_directed());
+                assert!(!wavemodel.is_directed(), "Wavemodel is suddenly directed!");
 
                 // edge_map
                 let mut edge_map_expected = HashMap::new();
-                edge_map_expected.insert(("v1", "v2"), vec![0]); // e1
-                edge_map_expected.insert(("v1", "v3"), vec![1]); // e2
-                edge_map_expected.insert(("v2", "v3"), vec![2]); // e3
-                edge_map_expected.insert(("v3", "v2"), vec![3, 4]); // e4 && e5
+                edge_map_expected.insert(("v1".to_string(), "v2".to_string()), 0); // e1
+                edge_map_expected.insert(("v1".to_string(), "v3".to_string()), 1); // e2
+                edge_map_expected.insert(("v2".to_string(), "v3".to_string()), 2); // e3
+                edge_map_expected.insert(("v3".to_string(), "v2".to_string()), 3); // e4
                 let edge_map_found = wavemodel.to_edge_map();
-                dbg!(&edge_map_found);
-                assert!(edge_map_found == edge_map_expected);
+                assert!(
+                    edge_map_found == edge_map_expected,
+                    "Edge map was not as expected!\nExpected: {0:?}\nFound: {1:?}",
+                    edge_map_expected,
+                    edge_map_found
+                );
             }
             Err(e) => {
                 assert!(false);
@@ -614,25 +683,10 @@ mod test {
     #[test]
     fn check_transformation_from_wavemodel_directed() {
         #![allow(unused_variables)]
-        let mut graph: GraphModel<&str, f64, f64, petgraph::prelude::Directed> =
-            GraphModel::new_directed();
-        let v1 = graph.add_node("v1", 1.0);
-        let v2 = graph.add_node("v2", 1.5);
-        let v3 = graph.add_node("v3", 1.0);
-
-        // Edges:
-        // v1 - v2
-        let e1 = graph.add_edge(v1, v2, "e1", 1.0);
-        // v1 - v3
-        let e2 = graph.add_edge(v1, v3, "e2", 1.0);
-        // v2 - v3
-        let e3 = graph.add_edge(v2, v3, "e3", 1.0);
-        // v3 - v2
-        let e4 = graph.add_edge(v3, v2, "e4", 1.0);
-
+        let graph = create_directed_test_graph();
         let graph_orig = graph.clone();
 
-        let wavemodel: WaveModel<&str, f64, f64>;
+        let wavemodel: WaveModel<String, f64, f64>;
 
         match WaveModel::try_from(graph) {
             Ok(w) => {
@@ -644,16 +698,25 @@ mod test {
             }
         }
 
-        match GraphModel::<&str, f64, f64, petgraph::prelude::Directed>::try_from(wavemodel) {
+        match GraphModel::<String, f64, f64, petgraph::prelude::Directed>::try_from(wavemodel) {
             Ok(graphmodel) => {
                 let adjacency_list_expected = vec![
-                    ("v1", vec!["v2", "v3"]),
-                    ("v2", vec!["v3"]),
-                    ("v3", vec!["v2"]),
+                    ("v1".to_string(), vec!["v2".to_string(), "v3".to_string()]),
+                    ("v2".to_string(), vec![]),
+                    (
+                        "v3".to_string(),
+                        vec!["v1".to_string(), "v2".to_string(), "v4".to_string()],
+                    ),
+                    ("v4".to_string(), vec!["v1".to_string(), "v2".to_string()]),
                 ];
                 let adjacency_list_found = graphmodel.to_adjacency_list();
 
-                assert!(adjacency_list_found == adjacency_list_expected);
+                assert!(
+                    adjacency_list_found == adjacency_list_expected,
+                    "Adjacency list not as expected!\nExpected: {0:?}\nFound: {1:?}",
+                    adjacency_list_expected,
+                    adjacency_list_found
+                );
             }
             Err(e) => {
                 assert!(false);
