@@ -7,8 +7,10 @@
 mod graphmodel;
 pub use graphmodel::GraphModel;
 mod wavemodel;
+use serde::{Deserialize, Serialize};
 pub use wavemodel::WaveModel;
 
+#[derive(Clone, Serialize, Deserialize)]
 pub enum QWT {
     QWT256(qwt::QWT256<usize>),
     QWT512(qwt::QWT512<usize>),

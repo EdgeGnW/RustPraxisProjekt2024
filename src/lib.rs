@@ -311,4 +311,25 @@ mod test {
             bit_map.len()
         );
     }
+
+    #[test]
+    fn check_serde_with_json() {
+        let graph = create_directed_graph();
+        let wave = WaveModel::<String, f32, f32>::try_from(graph).unwrap();
+
+        let json_string = serde_json::to_string(&wave).unwrap();
+        let from_json_string: WaveModel<String, f32, f32> =
+            serde_json::from_str(&json_string).unwrap();
+        assert!(wave.is_directed() == from_json_string.is_directed());
+    }
+
+    //#[test]
+    //fn check_serde_with_toml() {
+    //    let graph = create_directed_graph();
+    //    let wave = WaveModel::<String, f32, f32>::try_from(graph).unwrap();
+    //
+    //    let toml_string = toml::to_string(&wave).unwrap();
+    //    let from_toml_string: WaveModel<String, f32, f32> = toml::from_str(&toml_string).unwrap();
+    //    assert!(wave.is_directed() == from_toml_string.is_directed());
+    //}
 }
