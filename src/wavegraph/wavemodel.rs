@@ -18,6 +18,8 @@ pub enum WaveModelError {
     ConversionError,
     #[error("INVALID EDGE. NO ENDPOINTS FOUND")]
     InvalidEdge,
+    #[error("NODE DOES NOT EXIST")]
+    NodeDoesNotExist,
 }
 
 /// # Implementation of the WaveModel-State.
@@ -157,6 +159,61 @@ where
         ));
 
         adjacency_list
+    }
+
+    pub fn add_node(&self, label: L, weight: N) -> usize {
+        self.data_table_nodes.push((label, weight));
+        return self.data_table_nodes.len() - 1;
+    }
+
+    fn add_edge_unchecked(&self, label: L, weight: E, node_from: L, node_to: L) -> usize {
+        // Update data_table
+        self.data_table_edges.push((label, weight));
+        let idx_new_edge = self.data_table_edges.len() - 1;
+
+        // Update edge_map
+        match edge_map.get((node_from, node_to)) {
+            Some(idxs) => idxs.push(idx_new_edge),
+            None => edge_map.insert((node_from, node_to), vec![idx_new_edge]),
+        }
+
+        // Update sequence and bitmap
+        // UNSAFE: Because the existence of the 'to'-node is not explicitly checked
+        let idx_node_from = data_table_nodes
+            .iter()
+            .position(|(&L, _)| L == node_from)
+            .unwrap();
+        if idx_note_from == data_table_nodes.len() - 1 {
+            // Simple case of just adding it to the end of the sequence and bitmap
+            self.sequence.push(node_to);
+            self.bitmap.bit_vector().push(false);
+        } else {
+            // 'node from' is not the last node => the position to insert the information into the
+            // sequence and bitmap needs to be determined
+            let idx_start_next_node = self.bitmap.select(true, idx_node_from + 2);
+            let idx_in_sequence = self.bitmap.rank(false, idx_start_next_node);
+            self.sequence.insert(node_to, idx_in_sequence);
+            self.bitmap.bit_vector().insert(false, idx_start_next_node);
+        }
+        return idx_new_edge;
+    }
+
+    pub fn add_edge(
+        &self,
+        label: L,
+        weight: E,
+        node_from: L,
+        note_to: L,
+    ) -> Result<usize, WaveModelError> {
+        match self
+            .data_table_nodes
+            .iter()
+            .filter(|(l, _)| *l == node_from || *l == node_to)
+            .count()
+        {
+            2 => Ok(self.add_edge_unchecked(label, weight, node_from, node_to)),
+            _ => Err(WaveModelError::NodeDoesNotExist),
+        }
     }
 }
 
