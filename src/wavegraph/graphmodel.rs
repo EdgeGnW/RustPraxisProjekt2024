@@ -446,7 +446,7 @@ mod test {
     use crate::wavegraph::GraphModel;
     use crate::wavegraph::WaveModel;
     use std::collections::HashMap;
-    use sucds::bit_vectors::BitVector;
+    use sucds::bit_vectors::Rank9Sel;
 
     fn create_directed_test_graph() -> GraphModel<String, f64, f64, petgraph::prelude::Directed> {
         let mut graph: GraphModel<String, f64, f64, petgraph::prelude::Directed> =
@@ -531,8 +531,14 @@ mod test {
         let found = graph.to_adjacency_list();
         let expected = vec![
             ("v1".to_string(), vec!["v2".to_string(), "v3".to_string()]),
-            ("v3".to_string(), vec!["v1".to_string(), "v2".to_string()]),
-            ("v2".to_string(), vec!["v1".to_string(), "v3".to_string()]),
+            (
+                "v3".to_string(),
+                vec!["v1".to_string(), "v2".to_string(), "v2".to_string()],
+            ),
+            (
+                "v2".to_string(),
+                vec!["v1".to_string(), "v3".to_string(), "v3".to_string()],
+            ),
         ];
 
         assert!(
@@ -575,7 +581,7 @@ mod test {
                 );
 
                 // bitmap
-                let bitmap_exp = BitVector::from_bits([
+                let bitmap_exp = Rank9Sel::from_bits([
                     true, false, false, true, false, false, false, true, true, false, false,
                 ]);
                 let bitmap_found = wavemodel.bitmap().clone();
@@ -591,13 +597,13 @@ mod test {
 
                 // edge_map
                 let mut edge_map_expected = HashMap::new();
-                edge_map_expected.insert(("v1".to_string(), "v2".to_string()), 0); // e1
-                edge_map_expected.insert(("v1".to_string(), "v3".to_string()), 1); // e2
-                edge_map_expected.insert(("v3".to_string(), "v1".to_string()), 2); // e3
-                edge_map_expected.insert(("v3".to_string(), "v2".to_string()), 3); // e4
-                edge_map_expected.insert(("v3".to_string(), "v4".to_string()), 4); // e5
-                edge_map_expected.insert(("v4".to_string(), "v1".to_string()), 5); // e6
-                edge_map_expected.insert(("v4".to_string(), "v2".to_string()), 6); // e7
+                edge_map_expected.insert(("v1".to_string(), "v2".to_string()), vec![0 as usize]); // e1
+                edge_map_expected.insert(("v1".to_string(), "v3".to_string()), vec![1 as usize]); // e2
+                edge_map_expected.insert(("v3".to_string(), "v1".to_string()), vec![2 as usize]); // e3
+                edge_map_expected.insert(("v3".to_string(), "v2".to_string()), vec![3 as usize]); // e4
+                edge_map_expected.insert(("v3".to_string(), "v4".to_string()), vec![4 as usize]); // e5
+                edge_map_expected.insert(("v4".to_string(), "v1".to_string()), vec![5 as usize]); // e6
+                edge_map_expected.insert(("v4".to_string(), "v2".to_string()), vec![6 as usize]); // e7
                 let edge_map_found = wavemodel.to_edge_map();
                 assert!(
                     edge_map_found == edge_map_expected,
@@ -615,22 +621,22 @@ mod test {
     #[test]
     fn check_transformation_from_graphmodel_undirected_parallel_from_one_node() {
         #![allow(unused_variables)]
-        let mut graph: GraphModel<&str, f64, f64, petgraph::prelude::Undirected> =
+        let mut graph: GraphModel<String, f64, f64, petgraph::prelude::Undirected> =
             GraphModel::new_undirected();
-        let v1 = graph.add_node("v1", 1.0);
-        let v2 = graph.add_node("v2", 1.5);
-        let v3 = graph.add_node("v3", 1.0);
+        let v1 = graph.add_node("v1".to_string(), 1.0);
+        let v2 = graph.add_node("v2".to_string(), 1.5);
+        let v3 = graph.add_node("v3".to_string(), 1.0);
 
         // Edges:
         // v1 - v2
-        let e1 = graph.add_edge(v1, v2, "e1", 1.0);
+        let e1 = graph.add_edge(v1, v2, "e1".to_string(), 1.0);
         // v1 - v3
-        let e2 = graph.add_edge(v1, v3, "e2", 1.0);
+        let e2 = graph.add_edge(v1, v3, "e2".to_string(), 1.0);
         // v2 - v3
-        let e3 = graph.add_edge(v2, v3, "e3", 1.0);
+        let e3 = graph.add_edge(v2, v3, "e3".to_string(), 1.0);
         // v3 - v2
-        let e4 = graph.add_edge(v3, v2, "e4", 1.0);
-        let e5 = graph.add_edge(v3, v2, "e5", 2.0);
+        let e4 = graph.add_edge(v3, v2, "e4".to_string(), 1.0);
+        let e5 = graph.add_edge(v3, v2, "e5".to_string(), 2.0);
 
         match WaveModel::try_from(graph) {
             Ok(wavemodel) => {
@@ -645,7 +651,7 @@ mod test {
                 );
 
                 // bitmap
-                let bitmap_exp = BitVector::from_bits([
+                let bitmap_exp = Rank9Sel::from_bits([
                     true, false, false, true, false, false, false, false, true, false, false,
                     false, false,
                 ]);
@@ -662,10 +668,13 @@ mod test {
 
                 // edge_map
                 let mut edge_map_expected = HashMap::new();
-                edge_map_expected.insert(("v1".to_string(), "v2".to_string()), 0); // e1
-                edge_map_expected.insert(("v1".to_string(), "v3".to_string()), 1); // e2
-                edge_map_expected.insert(("v2".to_string(), "v3".to_string()), 2); // e3
-                edge_map_expected.insert(("v3".to_string(), "v2".to_string()), 3); // e4
+                edge_map_expected.insert(("v1".to_string(), "v2".to_string()), vec![0 as usize]); // e1
+                edge_map_expected.insert(("v1".to_string(), "v3".to_string()), vec![1 as usize]); // e2
+                edge_map_expected.insert(("v2".to_string(), "v3".to_string()), vec![2 as usize]); // e3
+                edge_map_expected.insert(
+                    ("v3".to_string(), "v2".to_string()),
+                    vec![3 as usize, 4 as usize],
+                ); // e4
                 let edge_map_found = wavemodel.to_edge_map();
                 assert!(
                     edge_map_found == edge_map_expected,

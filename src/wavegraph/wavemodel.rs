@@ -49,10 +49,11 @@ where
     is_directed: bool,
 }
 
-fn serialize_bitmap<S>(bitvec: &BitVector, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_bitmap<S>(bitvec_rank9sel: &Rank9Sel, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
+    let bitvec: &BitVector = bitvec_rank9sel.bit_vector();
     let bits: Vec<bool> = bitvec.iter().collect();
     let mut seq = serializer.serialize_seq(Some(bits.len()))?;
     for bit in bits {
@@ -61,20 +62,20 @@ where
     seq.end()
 }
 
-fn deserialize_bitmap<'de, D>(deserializer: D) -> Result<BitVector, D::Error>
+fn deserialize_bitmap<'de, D>(deserializer: D) -> Result<Rank9Sel, D::Error>
 where
     D: Deserializer<'de>,
 {
     struct BitVecVisitor;
 
     impl<'de> Visitor<'de> for BitVecVisitor {
-        type Value = BitVector;
+        type Value = Rank9Sel;
 
         fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
             formatter.write_str("a sequence of bools")
         }
 
-        fn visit_seq<A>(self, mut seq: A) -> Result<BitVector, A::Error>
+        fn visit_seq<A>(self, mut seq: A) -> Result<Rank9Sel, A::Error>
         where
             A: SeqAccess<'de>,
         {
@@ -82,7 +83,7 @@ where
             while let Some(bit) = seq.next_element::<bool>()? {
                 bitvec.push_bit(bit);
             }
-            Ok(bitvec)
+            Ok(Rank9Sel::new(bitvec))
         }
     }
 
@@ -293,7 +294,7 @@ mod test {
     use super::QWT;
     use crate::wavegraph::WaveModel;
     use std::collections::HashMap;
-    use sucds::bit_vectors::BitVector;
+    use sucds::bit_vectors::Rank9Sel;
 
     fn create_directed_test_model() -> WaveModel<String, usize, usize> {
         let sequence = vec![
@@ -303,13 +304,13 @@ mod test {
             "v1".to_string(),
             "v2".to_string(),
         ];
-        let bitmap = BitVector::from_bits([true, false, false, true, false, true, false, false]);
-        let mut edge_map = HashMap::<(String, String), usize>::new();
-        edge_map.insert(("v1".to_string(), "v2".to_string()), 0);
-        edge_map.insert(("v1".to_string(), "v3".to_string()), 1);
-        edge_map.insert(("v2".to_string(), "v1".to_string()), 2);
-        edge_map.insert(("v3".to_string(), "v1".to_string()), 3);
-        edge_map.insert(("v3".to_string(), "v2".to_string()), 4);
+        let bitmap = Rank9Sel::from_bits([true, false, false, true, false, true, false, false]);
+        let mut edge_map = HashMap::<(String, String), Vec<usize>>::new();
+        edge_map.insert(("v1".to_string(), "v2".to_string()), vec![0 as usize]);
+        edge_map.insert(("v1".to_string(), "v3".to_string()), vec![1 as usize]);
+        edge_map.insert(("v2".to_string(), "v1".to_string()), vec![2 as usize]);
+        edge_map.insert(("v3".to_string(), "v1".to_string()), vec![3 as usize]);
+        edge_map.insert(("v3".to_string(), "v2".to_string()), vec![4 as usize]);
 
         // The indexing of the nodes may be wrong
         let data_table_nodes = vec![
@@ -359,14 +360,14 @@ mod test {
             "v2".to_string(),
         ];
         let bitmap =
-            BitVector::from_bits([true, false, false, true, false, false, true, false, false]);
-        let mut edge_map = HashMap::<(String, String), usize>::new();
-        edge_map.insert(("v1".to_string(), "v2".to_string()), 0);
-        edge_map.insert(("v1".to_string(), "v3".to_string()), 1);
-        edge_map.insert(("v2".to_string(), "v1".to_string()), 2);
-        edge_map.insert(("v2".to_string(), "v3".to_string()), 3);
-        edge_map.insert(("v3".to_string(), "v1".to_string()), 4);
-        edge_map.insert(("v3".to_string(), "v2".to_string()), 5);
+            Rank9Sel::from_bits([true, false, false, true, false, false, true, false, false]);
+        let mut edge_map = HashMap::<(String, String), Vec<usize>>::new();
+        edge_map.insert(("v1".to_string(), "v2".to_string()), vec![0 as usize]);
+        edge_map.insert(("v1".to_string(), "v3".to_string()), vec![1 as usize]);
+        edge_map.insert(("v2".to_string(), "v1".to_string()), vec![2 as usize]);
+        edge_map.insert(("v2".to_string(), "v3".to_string()), vec![3 as usize]);
+        edge_map.insert(("v3".to_string(), "v1".to_string()), vec![4 as usize]);
+        edge_map.insert(("v3".to_string(), "v2".to_string()), vec![5 as usize]);
 
         // The indexing of the nodes may be wrong
         let data_table_nodes = vec![
