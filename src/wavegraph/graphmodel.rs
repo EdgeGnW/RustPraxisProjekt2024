@@ -222,6 +222,33 @@ where
         todo!()
     }
 
+    /// Provides the option to update both the label and weight on some node.
+    /// Returns a NodeNotFound error, if the index cannot be found.
+    ///
+    /// Searches inside of the underlying petgraph for the node as provided by its index and
+    /// gets its label reference. Breaks and returns an error if the node cannot be found.
+    /// Afterwards searches inside of the corresponding label-to-weight-table with the found label
+    /// and only then updates the label and weight on both structures.
+    ///
+    /// # Examples
+    /// ```
+    /// // TODO: Give example here
+    /// ```
+    pub fn update_node(
+        &mut self,
+        idx: NodeIndex<Ix>,
+        new_label: L,
+        new_weight: N
+    ) -> Result<NodeIndex<Ix>, GraphModelError> {
+        if let Ok(_) = self.update_node_label(idx, new_label) {
+            if let Ok(res) = self.update_node_weight(idx, new_weight) {
+                return Ok(res);
+            }
+        }
+        // Otherwhise return NodeNotFound error!
+        return Err(GraphModelError::NodeNotFound);
+    }
+
     /// Provides the option to update a label on some node.
     /// Returns a NodeNotFound error, if the index cannot be found.
     ///
@@ -250,6 +277,56 @@ where
                     *label_ref = new_label.clone();
                     return Ok(idx);
                 }
+            }
+        }
+        // Otherwhise return NodeNotFound error!
+        return Err(GraphModelError::NodeNotFound);
+    }
+
+    /// Provides the option to update a weight on some node.
+    /// Returns a NodeNotFound error, if the index cannot be found.
+    ///
+    /// Updates the corresponding node in the label-to-weight-table with the new weight
+    ///
+    /// # Examples
+    /// ```
+    /// // TODO: Give example here
+    /// ```
+    pub fn update_node_weight(
+        &mut self,
+        idx: NodeIndex<Ix>,
+        new_weight: N,
+    ) -> Result<NodeIndex<Ix>, GraphModelError> {
+        let index = idx.index();
+        if index < self.data_table_nodes.len() {
+            self.data_table_nodes[index].1 = new_weight;
+            return Ok(idx);
+        }
+        // Otherwhise return NodeNotFound error!
+        return Err(GraphModelError::NodeNotFound);
+    }
+
+    /// Provides the option to update both the label and weight on some edge.
+    /// Returns a NodeNotFound error, if the index cannot be found.
+    ///
+    /// Searches inside of the underlying petrgraph for the edge as provided by its index and
+    /// gets its label reference. Breaks and returns an error if the edge cannot be found.
+    /// Afterwards searches inside of the corresponding label-to-weight-table with the found label
+    /// and only then updates the label and weight on both structures.
+    ///
+    /// # Examples
+    /// ```
+    /// // TODO: Give example here
+    /// ```
+    pub fn update_edge(
+        &mut self,
+        idx: EdgeIndex<Ix>,
+        new_label: L,
+        new_weight: E
+    ) -> Result<EdgeIndex<Ix>, GraphModelError> {
+        if let Ok(_) = self.update_edge_label(idx, new_label) {
+            if let Ok(res) = self.update_edge_weight(idx, new_weight) {
+                return Ok(res);
             }
         }
         // Otherwhise return NodeNotFound error!
@@ -288,6 +365,29 @@ where
         }
         // Otherwhise return EdgeNotFound error!
         return Err(GraphModelError::EdgeNotFound);
+    }
+
+    /// Provides the option to update a weight on some edge.
+    /// Returns a EdgeNotFound error, if the index cannot be found.
+    ///
+    /// Updates the corresponding edge in the label-to-weight-table with the new weight
+    ///
+    /// # Examples
+    /// ```
+    /// // TODO: Give example here
+    /// ```
+    pub fn update_edge_weight(
+        &mut self,
+        idx: EdgeIndex<Ix>,
+        new_weight: E,
+    ) -> Result<EdgeIndex<Ix>, GraphModelError> {
+        let index = idx.index();
+        if index < self.data_table_edges.len() {
+            self.data_table_edges[index].1 = new_weight;
+            return Ok(idx);
+        }
+        // Otherwhise return NodeNotFound error!
+        return Err(GraphModelError::NodeNotFound);
     }
 }
 
@@ -793,16 +893,20 @@ mod test {
     fn check_update_node_label() {
         #![allow(unused_variables)]
         let mut graph = create_directed_test_graph();
-        let _ = graph.update_node_label(graph.graph.node_indices().into_iter().next().unwrap(), "v5".to_string());
+        let mut node_iter = graph.graph.node_indices().into_iter();
+        let _ = graph.update_node_label(node_iter.next().unwrap(), "v5".to_string());
+        node_iter.next();
+        node_iter.next();
+        let _ = graph.update_node_label(node_iter.next().unwrap(), "v6".to_string());
         let found = graph.to_adjacency_list();
         let expected = vec![
             ("v5".to_string(), vec!["v2".to_string(), "v3".to_string()]),
             (
                 "v3".to_string(),
-                vec!["v2".to_string(), "v4".to_string(), "v5".to_string()],
+                vec!["v2".to_string(), "v5".to_string(), "v6".to_string()],
             ),
             ("v2".to_string(), vec![]),
-            ("v4".to_string(), vec!["v2".to_string(), "v5".to_string()]),
+            ("v6".to_string(), vec!["v2".to_string(), "v5".to_string()]),
         ];
 
         assert!(
@@ -817,19 +921,62 @@ mod test {
     fn check_update_edge_label() {
         #![allow(unused_variables)]
         let mut graph = create_directed_test_graph();
-        let _ = graph.update_edge_label(graph.graph.edge_indices().into_iter().next().unwrap(), "e8".to_string());
+        let mut edge_iter = graph.graph.edge_indices().into_iter();
+        let _ = graph.update_edge_label(edge_iter.next().unwrap(), "e8".to_string());
+        edge_iter.next();
+        edge_iter.next();
+        let _ = graph.update_edge_label(edge_iter.next().unwrap(), "e9".to_string());
         let (found, _): (Vec<_>, Vec<_>) = graph.data_table_edges.into_iter().unzip();
         let expected = vec!["e8".to_string(),
                                         "e2".to_string(),
                                         "e3".to_string(),
-                                        "e4".to_string(),
+                                        "e9".to_string(),
                                         "e5".to_string(),
                                         "e6".to_string(),
                                         "e7".to_string()];
 
         assert!(
             found == expected,
-            "Adjacency list not as expected!\nExpected: {0:?}\nFound: {1:?}",
+            "Edge lables not as expected!\nExpected: {0:?}\nFound: {1:?}",
+            expected,
+            found
+        );
+    }
+
+    #[test]
+    fn check_update_node_weight() {
+        #![allow(unused_variables)]
+        let mut graph = create_directed_test_graph();
+        let mut node_iter = graph.graph.node_indices().into_iter();
+        let _ = graph.update_node_weight(node_iter.next().unwrap(), 2.0);
+        node_iter.next();
+        node_iter.next();
+        let _ = graph.update_node_weight(node_iter.next().unwrap(), 3.0);
+        let (_, found): (Vec<_>, Vec<_>) = graph.data_table_nodes.into_iter().unzip();
+        let expected = vec![2.0, 1.0, 1.5, 3.0];
+
+        assert!(
+            found == expected,
+            "Node weights not as expected!\nExpected: {0:?}\nFound: {1:?}",
+            expected,
+            found
+        );
+    }
+
+    #[test]
+    fn check_update_edge_weight() {
+        #![allow(unused_variables)]
+        let mut graph = create_directed_test_graph();
+        let mut edge_iter = graph.graph.edge_indices().into_iter();
+        let _ = graph.update_edge_weight(edge_iter.next().unwrap(), 2.0);
+        edge_iter.next();
+        edge_iter.next();
+        let _ = graph.update_edge_weight(edge_iter.next().unwrap(), 3.0);
+        let (_, found): (Vec<_>, Vec<_>) = graph.data_table_edges.into_iter().unzip();
+        let expected = vec![2.0, 1.0, 1.0, 3.0, 1.0, 1.0, 1.0,];
+        assert!(
+            found == expected,
+            "Edge weights not as expected!\nExpected: {0:?}\nFound: {1:?}",
             expected,
             found
         );
