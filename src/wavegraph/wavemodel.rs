@@ -173,6 +173,7 @@ where
     /// Adds a new node to the WaveModel. Returns the index of the newly added node.
     pub fn add_node(&mut self, label: L, weight: N) -> usize {
         self.data_table_nodes.push((label, weight));
+        self.is_modified = true;
         return self.data_table_nodes.len() - 1;
     }
 
@@ -202,36 +203,27 @@ where
     /// Removes a node from the WaveModel. Returns an error if the passed index is out of bounds.
     /// Otherwise returns the removed node as (label_node, weight_node)-tupel.
     /// Note that calling this function will also remove edges containing the to-be-removed-node.
-    pub fn remove_node(&mut self, idx: usize) -> Result<(L, N), WaveModelError> {
-        let node_label_opt: Option<L>;
-        if let Some(label) = self.node_label(&idx) {
-            // Can be safely unwrapped after this
-            node_label_opt = Some(label.clone());
-        } else {
+    pub fn remove_node(&mut self, idx: &usize) -> Result<(L, N), WaveModelError> {
+        // Check if node exists, to assure following unwraps
+        if let None = self.data_table_nodes.get(*idx) {
             return Err(WaveModelError::NodeDoesNotExist);
         }
 
-        let node_label = node_label_opt.unwrap();
-
-        // Remove node from edge_map
-        let mut keys_remove: Vec<(L, L)> = Vec::new();
-        for (key, _) in &self.edge_map {
-            if key.0 == node_label || key.1 == node_label {
-                // Remember vector of keys to delete later
-                keys_remove.push(key.clone());
-            }
-        }
-
-        // Remove keys from edge_map
-        for key in keys_remove {
-            let _ = self.edge_map.remove(&key);
+        // Remove edges one-after the other, which are dependent on the node to be removed.
+        // It is important that inside of each loop the index of the edge is evaluated by its
+        // label, because otherwise the call to `remove_edge` would modify the indices and mess
+        // with the pre-fetched indices. Therefore we must match by the label of the edge and
+        // acquire the matching index in each iteration.
+        let edges_containing_node: Vec<L> = self.node_edges(&idx).unwrap();
+        for edge in edges_containing_node {
+            let _ = self.remove_edge(&self.edge_index(&edge).unwrap());
         }
 
         // Do not modify bitmap nor sequence, but remember by setting the modified-bit
         self.is_modified = true;
 
         // Remove from data_table_nodes
-        let old_node: (L, N) = self.data_table_nodes.swap_remove(idx);
+        let old_node: (L, N) = self.data_table_nodes.swap_remove(*idx);
 
         Ok(old_node)
     }
@@ -341,8 +333,8 @@ where
     /// Removes an edge from the WaveModel. Returns an error if the passed index is out of bounds.
     /// Otherwise returns the removed edge as (label_edge, weight_edge, label_node_from,
     /// label_node_to)-tupel.
-    pub fn remove_edge(&mut self, idx: usize) -> Result<(L, E, L, L), WaveModelError> {
-        if let None = self.data_table_edges.get(idx) {
+    pub fn remove_edge(&mut self, idx: &usize) -> Result<(L, E, L, L), WaveModelError> {
+        if let None = self.data_table_edges.get(*idx) {
             return Err(WaveModelError::EdgeDoesNotExist);
         }
 
@@ -354,21 +346,34 @@ where
 
         // Remove edge from edge_map
         let edge_map_iter = self.edge_map.iter_mut();
+        // Get last index of data-table (is guaranteed to exist)
+        let last_idx = self.data_table_edges.len() - 1;
         for (key, vals) in edge_map_iter {
-            if vals.contains(&idx) {
+            if vals.contains(idx) {
                 // Get index position inside of vals vector
                 // Can safely unwrap, because contains checks for existence,
                 // therefore position will never return None
-                let vals_idx = vals.iter().position(|n| *n == idx).unwrap();
+                let vals_idx = vals.iter().position(|n| *n == *idx).unwrap();
                 vals.remove(vals_idx);
 
                 // Edge index can only be part of a single edge-connection
                 nodes = Some(key.clone());
 
-                break;
+                // No more work required to prepare swap_remove if passed idx
+                // is at the last position
+                if last_idx == *idx {
+                    break;
+                }
+            }
+
+            // Prepare for upcoming swap_remove
+            if let Some(pos) = vals.iter().position(|x| *x == last_idx) {
+                let old_idx: &mut usize = vals.get_mut(pos).unwrap();
+                *old_idx = *idx;
             }
         }
 
+        // Cleanup if vector of values is empty, the entire entry can be deleted
         if self.edge_map.get(&nodes.clone().unwrap()).unwrap().len() == 0 {
             self.edge_map.remove(&nodes.clone().unwrap());
         }
@@ -377,7 +382,7 @@ where
         self.is_modified = true;
 
         // Remove edge from data_table and swap in last edge
-        let old_edge: (L, E) = self.data_table_edges.swap_remove(idx);
+        let old_edge: (L, E) = self.data_table_edges.swap_remove(*idx);
 
         // Finally return the just removed edge
         Ok((
@@ -436,6 +441,37 @@ where
             Some((l, _)) => Some(l),
             None => None,
         }
+    }
+
+    /// Returns the indices of all edges that are connected to the passed node. Explicitly returns
+    /// incoming and outgoing edges, so further filtering may be needed.
+    /// Returns an error, if the passed index does not belong to any existing node.
+    pub fn node_edges(&self, idx: &usize) -> Result<Vec<L>, WaveModelError> {
+        if let None = self.data_table_edges.get(*idx) {
+            return Err(WaveModelError::NodeDoesNotExist);
+        }
+
+        let node = self.node_label(idx).unwrap();
+        // Sadly we need to linearly traverse the edge_map to find every occurence of the passed
+        // node
+        let edge_map_iter = self
+            .edge_map
+            .iter()
+            .filter(|((node_left, node_right), _)| *node_left == *node || *node_right == *node);
+
+        let mut idxs: Vec<L> = Vec::new();
+
+        for (_, vals) in edge_map_iter {
+            idxs.append(
+                &mut vals
+                    .clone()
+                    .iter()
+                    .map(|index| self.edge_label(index).unwrap().clone())
+                    .collect(),
+            );
+        }
+
+        return Ok(idxs);
     }
 }
 
@@ -718,7 +754,9 @@ mod test {
         let edge_map_expected = HashMap::<(String, String), Vec<usize>>::new();
         let data_table_nodes_expected = vec![("v1".to_string(), 42 as usize)];
         let data_table_edges_expected = vec![];
+
         let is_directed_expected = true;
+        let is_modified_expected = true;
 
         check_members_equal_to(
             &model,
@@ -728,6 +766,7 @@ mod test {
             &data_table_nodes_expected,
             &data_table_edges_expected,
             &is_directed_expected,
+            &is_modified_expected,
         );
     }
 
@@ -739,7 +778,9 @@ mod test {
         let edge_map_expected = HashMap::<(String, String), Vec<usize>>::new();
         let data_table_nodes_expected = vec![("v1".to_string(), 42 as usize)];
         let data_table_edges_expected = vec![];
+
         let is_directed_expected = false;
+        let is_modified_expected = true;
 
         check_members_equal_to(
             &model,
@@ -749,21 +790,23 @@ mod test {
             &data_table_nodes_expected,
             &data_table_edges_expected,
             &is_directed_expected,
+            &is_modified_expected,
         );
     }
 
     #[test]
     fn check_remove_node_directed() {
         let mut model = create_directed_test_model();
-        if let Ok(_) = model.remove_node(2 as usize) {
+        if let Ok(_) = model.remove_node(&(2 as usize)) {
             let mut edge_map_expected = HashMap::<(String, String), Vec<usize>>::new();
             edge_map_expected.insert(("v1".to_string(), "v2".to_string()), vec![0 as usize]);
             edge_map_expected.insert(("v2".to_string(), "v1".to_string()), vec![1 as usize]);
 
             let data_table_nodes_expected = vec![("v1".to_string(), 0), ("v2".to_string(), 1)];
-            let data_table_edges_expected = vec![("e1".to_string(), 0), ("e3".to_string(), 1)];
+            let data_table_edges_expected = vec![("e1".to_string(), 0), ("e3".to_string(), 2)];
 
             let is_directed_expected = true;
+            let is_modified_expected = true;
 
             check_members_equal_to(
                 &model,
@@ -773,6 +816,7 @@ mod test {
                 &data_table_nodes_expected,
                 &data_table_edges_expected,
                 &is_directed_expected,
+                &is_modified_expected,
             );
         } else {
             assert!(false, "Call to `remove_node` function failed!");
@@ -782,22 +826,16 @@ mod test {
     #[test]
     fn check_remove_node_undirected() {
         let mut model = create_undirected_test_model();
-        if let Ok(_) = model.remove_node(1 as usize) {
+        if let Ok(_) = model.remove_node(&(1 as usize)) {
             let mut edge_map_expected = HashMap::<(String, String), Vec<usize>>::new();
-            edge_map_expected.insert(("v1".to_string(), "v2".to_string()), vec![0 as usize]);
+            edge_map_expected.insert(("v3".to_string(), "v1".to_string()), vec![0 as usize]);
             edge_map_expected.insert(("v1".to_string(), "v3".to_string()), vec![1 as usize]);
-            edge_map_expected.insert(("v3".to_string(), "v1".to_string()), vec![2 as usize]);
-            edge_map_expected.insert(("v3".to_string(), "v2".to_string()), vec![3 as usize]);
 
             let data_table_nodes_expected = vec![("v1".to_string(), 0), ("v3".to_string(), 2)];
-            let data_table_edges_expected = vec![
-                ("e1".to_string(), 0),
-                ("e2".to_string(), 1),
-                ("e6".to_string(), 2),
-                ("e5".to_string(), 3),
-            ];
+            let data_table_edges_expected = vec![("e5".to_string(), 4), ("e2".to_string(), 1)];
 
             let is_directed_expected = false;
+            let is_modified_expected = true;
 
             check_members_equal_to(
                 &model,
@@ -807,6 +845,7 @@ mod test {
                 &data_table_nodes_expected,
                 &data_table_edges_expected,
                 &is_directed_expected,
+                &is_modified_expected,
             );
         } else {
             assert!(false, "Call to `remove_node` function failed!");
@@ -848,6 +887,7 @@ mod test {
             ];
 
             let is_directed_expected = true;
+            let is_modified_expected = true;
 
             check_members_equal_to(
                 &model,
@@ -857,6 +897,7 @@ mod test {
                 &data_table_nodes_expected,
                 &data_table_edges_expected,
                 &is_directed_expected,
+                &is_modified_expected,
             );
         } else {
             assert!(false, "Call to `add_edge` function failed!");
@@ -904,6 +945,7 @@ mod test {
             ];
 
             let is_directed_expected = false;
+            let is_modified_expected = true;
 
             check_members_equal_to(
                 &model,
@@ -913,6 +955,7 @@ mod test {
                 &data_table_nodes_expected,
                 &data_table_edges_expected,
                 &is_directed_expected,
+                &is_modified_expected,
             );
         } else {
             assert!(false, "Call to `add_edge` function failed!");
@@ -922,12 +965,12 @@ mod test {
     #[test]
     fn check_remove_edge_directed() {
         let mut model = create_directed_test_model();
-        if let Ok(_) = model.remove_edge(3 as usize) {
+        if let Ok(_) = model.remove_edge(&(3 as usize)) {
             let mut edge_map_expected = HashMap::<(String, String), Vec<usize>>::new();
             edge_map_expected.insert(("v1".to_string(), "v2".to_string()), vec![0 as usize]);
             edge_map_expected.insert(("v1".to_string(), "v3".to_string()), vec![1 as usize]);
             edge_map_expected.insert(("v2".to_string(), "v1".to_string()), vec![2 as usize]);
-            edge_map_expected.insert(("v3".to_string(), "v2".to_string()), vec![4 as usize]);
+            edge_map_expected.insert(("v3".to_string(), "v2".to_string()), vec![3 as usize]);
 
             let data_table_nodes_expected = vec![
                 ("v1".to_string(), 0),
@@ -943,6 +986,7 @@ mod test {
             ];
 
             let is_directed_expected = true;
+            let is_modified_expected = true;
 
             check_members_equal_to(
                 &model,
@@ -952,6 +996,7 @@ mod test {
                 &data_table_nodes_expected,
                 &data_table_edges_expected,
                 &is_directed_expected,
+                &is_modified_expected,
             );
         } else {
             assert!(false, "Call to `remove_edge` function failed!");
@@ -961,13 +1006,13 @@ mod test {
     #[test]
     fn check_remove_edge_undirected() {
         let mut model = create_undirected_test_model();
-        if let Ok(_) = model.remove_edge(2 as usize) {
+        if let Ok(_) = model.remove_edge(&(2 as usize)) {
             let mut edge_map_expected = HashMap::<(String, String), Vec<usize>>::new();
             edge_map_expected.insert(("v1".to_string(), "v2".to_string()), vec![0 as usize]);
             edge_map_expected.insert(("v1".to_string(), "v3".to_string()), vec![1 as usize]);
             edge_map_expected.insert(("v2".to_string(), "v3".to_string()), vec![3 as usize]);
             edge_map_expected.insert(("v3".to_string(), "v1".to_string()), vec![4 as usize]);
-            edge_map_expected.insert(("v3".to_string(), "v2".to_string()), vec![5 as usize]);
+            edge_map_expected.insert(("v3".to_string(), "v2".to_string()), vec![2 as usize]);
 
             let data_table_nodes_expected = vec![
                 ("v1".to_string(), 0),
@@ -984,6 +1029,7 @@ mod test {
             ];
 
             let is_directed_expected = false;
+            let is_modified_expected = true;
 
             check_members_equal_to(
                 &model,
@@ -993,6 +1039,7 @@ mod test {
                 &data_table_nodes_expected,
                 &data_table_edges_expected,
                 &is_directed_expected,
+                &is_modified_expected,
             );
         } else {
             assert!(false, "Call to `remove_edge` function failed!");
@@ -1011,6 +1058,7 @@ mod test {
         data_table_nodes_expected: &Vec<(L, N)>,
         data_table_edges_expected: &Vec<(L, E)>,
         is_directed_expected: &bool,
+        is_modified_expected: &bool,
     ) {
         let sequence_found = &model.sequence;
         assert!(
@@ -1056,6 +1104,14 @@ mod test {
         assert!(
             *is_directed_found == *is_directed_expected,
             "WaveModel direction has unexpectedly changed!",
+        );
+
+        let is_modified_found = &model.is_modified;
+        assert!(
+            *is_modified_found == *is_modified_expected,
+            "The modified-bit has not been set correctly!\nExpected: {0:?}\nFound: {1:?}",
+            is_modified_expected,
+            is_modified_found
         );
     }
 }
