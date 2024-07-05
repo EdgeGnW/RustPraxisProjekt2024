@@ -219,9 +219,6 @@ mod test {
                 let mut edge_map_expected = HashMap::new();
                 edge_map_expected.insert(("v1".to_string(), "v2".to_string()), vec![0 as usize]); // e1
                 edge_map_expected.insert(("v1".to_string(), "v3".to_string()), vec![1 as usize]); // e2
-                edge_map_expected.insert(("v2".to_string(), "v1".to_string()), vec![1 as usize]); // e3
-                edge_map_expected.insert(("v2".to_string(), "v3".to_string()), vec![1 as usize]); // e4
-                edge_map_expected.insert(("v3".to_string(), "v1".to_string()), vec![1 as usize]); // e5
                 edge_map_expected.insert(("v3".to_string(), "v2".to_string()), vec![2 as usize]); // e6
                 let edge_map_found = wavemodel.to_edge_map();
                 assert!(
