@@ -1,13 +1,14 @@
 use super::graphmodel::GraphModel;
 use super::QWT;
+use qwt::{AccessUnsigned, RankUnsigned, SelectUnsigned, QWT512};
 use serde::{
     de::{SeqAccess, Visitor},
     ser::SerializeSeq,
     Deserialize, Deserializer, Serialize, Serializer,
 };
 use serde_with;
-use std::collections::HashMap;
 use std::hash::Hash;
+use std::{collections::HashMap, usize};
 use sucds::bit_vectors::{BitVector, Rank9Sel};
 
 use petgraph::{graph::IndexType, EdgeType};
@@ -39,6 +40,8 @@ where
 {
     wavelet_matrix: QWT,
     sequence: Vec<L>, //input sequence. A compressed adjacency list. Needs the bitmap to be read.
+    #[serde_as(as = "Vec<(_, _)>")] //HashMaps are kinda akward to parse. Leave it to some crate
+    sequence_index_map: HashMap<L, usize>,
     #[serde(
         serialize_with = "serialize_bitmap",
         deserialize_with = "deserialize_bitmap"
@@ -473,6 +476,61 @@ where
 
         return Ok(idxs);
     }
+
+    fn reconstruct_qwt(&mut self) {
+        todo!()
+    }
+
+    pub fn rank(&mut self, label: L, n: usize) -> Option<usize> {
+        //self.reconstruct_qwt();
+
+        let index = match self.sequence_index_map.get(&label) {
+            Some(index) => *index,
+            None => return None,
+        };
+
+        match self.wavelet_matrix {
+            QWT::QWT256(ref qwt) => qwt.rank(index, n),
+            QWT::QWT512(ref qwt) => qwt.rank(index, n),
+        }
+    }
+
+    pub fn access(&mut self, n: usize) -> Option<&(L, N)> {
+        //self.reconstruct_qwt();
+
+        match self.wavelet_matrix {
+            QWT::QWT256(ref qwt) => {
+                let index = match qwt.get(n) {
+                    Some(index) => index,
+                    None => return None,
+                };
+
+                self.data_table_nodes.get(index)
+            }
+            QWT::QWT512(ref qwt) => {
+                let index = match qwt.get(n) {
+                    Some(index) => index,
+                    None => return None,
+                };
+
+                self.data_table_nodes.get(index)
+            }
+        }
+    }
+
+    pub fn select(&mut self, label: L, n: usize) -> Option<usize> {
+        //self.reconstruct_qwt();
+
+        let index = match self.sequence_index_map.get(&label) {
+            Some(index) => *index,
+            None => return None,
+        };
+
+        match self.wavelet_matrix {
+            QWT::QWT256(ref qwt) => qwt.select(index, n),
+            QWT::QWT512(ref qwt) => qwt.select(index, n),
+        }
+    }
 }
 
 impl<L, N, E, Ty, Ix> TryFrom<GraphModel<L, N, E, Ty, Ix>> for WaveModel<L, N, E>
@@ -489,6 +547,7 @@ where
         let mut bitmap_vec = BitVector::new();
 
         let mut sequence = Vec::new();
+
         for (_, neighbor_labels) in adjacency_list {
             bitmap_vec.push_bit(true);
             for neighbor_label in neighbor_labels {
@@ -502,17 +561,11 @@ where
         for edge_index in value.edge_indicies() {
             match value.edge_endpoints(edge_index) {
                 Some((a, b)) => {
-                    let a_label = match value.node_label(a) {
-                        Some(label) => label.clone(),
-                        None => return Err(WaveModelError::ConversionError),
+                    let label_tupel = match (value.node_label(a), value.node_label(b)) {
+                        (Some(a_label), Some(b_label)) => (a_label.clone(), b_label.clone()),
+                        _ => return Err(WaveModelError::ConversionError),
                     };
 
-                    let b_label = match value.node_label(b) {
-                        Some(label) => label.clone(),
-                        None => return Err(WaveModelError::ConversionError),
-                    };
-
-                    let label_tupel = (a_label, b_label);
                     let possible_edge = edge_map.get_mut(&label_tupel);
                     match possible_edge {
                         Some(edge) => edge.push(edge_index.index()),
@@ -525,16 +578,34 @@ where
             }
         }
 
-        let sequence_indices = (0..sequence.len()).collect::<Vec<usize>>();
-
-        let wavelet_matrix = QWT::QWT256(qwt::QWT256::from(sequence_indices));
         let is_directed = value.is_directed();
 
         let (data_table_nodes, data_table_edges) = value.into_data_tables();
 
+        //SUPA EXPENSIVE
+        let temp_node_index_hash_map: HashMap<&L, usize> = data_table_nodes
+            .iter()
+            .enumerate()
+            .map(|(i, (label, _))| (label, i))
+            .collect();
+
+        let sequence_indices = sequence
+            .iter()
+            .map(|label| temp_node_index_hash_map.get(label).unwrap().clone())
+            .collect::<Vec<usize>>();
+
+        let sequence_index_map = sequence
+            .iter()
+            .cloned()
+            .zip(sequence_indices.clone())
+            .collect();
+
+        let wavelet_matrix = QWT::QWT256(qwt::QWT256::from(sequence_indices));
+
         let wavemodel = WaveModel {
             wavelet_matrix,
             sequence,
+            sequence_index_map,
             bitmap,
             edge_map,
             data_table_nodes,
@@ -551,11 +622,13 @@ where
 mod test {
     use super::QWT;
     use crate::wavegraph::WaveModel;
+    use qwt::AccessUnsigned;
     use std::collections::HashMap;
     use sucds::bit_vectors::{BitVector, Rank9Sel};
 
     fn create_empty_directed_test_model() -> WaveModel<String, usize, usize> {
         let sequence = vec![];
+        let sequence_index_map = HashMap::<String, usize>::new();
         let bitmap = Rank9Sel::new(BitVector::new());
         let edge_map = HashMap::<(String, String), Vec<usize>>::new();
         let data_table_nodes = vec![];
@@ -565,6 +638,7 @@ mod test {
         WaveModel {
             wavelet_matrix,
             sequence,
+            sequence_index_map,
             bitmap,
             edge_map,
             data_table_nodes,
@@ -576,6 +650,7 @@ mod test {
 
     fn create_empty_undirected_test_model() -> WaveModel<String, usize, usize> {
         let sequence = vec![];
+        let sequence_index_map = HashMap::<String, usize>::new();
         let bitmap = Rank9Sel::new(BitVector::new());
         let edge_map = HashMap::<(String, String), Vec<usize>>::new();
         let data_table_nodes = vec![];
@@ -585,6 +660,7 @@ mod test {
         WaveModel {
             wavelet_matrix,
             sequence,
+            sequence_index_map,
             bitmap,
             edge_map,
             data_table_nodes,
@@ -625,11 +701,13 @@ mod test {
         ];
 
         let mut sequence_idx: Vec<usize> = Vec::new();
+        let mut sequence_index_map = HashMap::new();
 
         for node in &sequence {
             for (n, idx) in &data_table_nodes {
                 if node == n {
                     sequence_idx.push(idx.clone());
+                    sequence_index_map.insert(n.clone(), idx.clone());
                     break;
                 }
             }
@@ -640,6 +718,7 @@ mod test {
         WaveModel {
             wavelet_matrix,
             sequence,
+            sequence_index_map,
             bitmap,
             edge_map,
             data_table_nodes,
@@ -684,11 +763,13 @@ mod test {
         ];
 
         let mut sequence_idx: Vec<usize> = Vec::new();
+        let mut sequence_index_map = HashMap::new();
 
         for node in &sequence {
             for (n, idx) in &data_table_nodes {
                 if node == n {
                     sequence_idx.push(idx.clone());
+                    sequence_index_map.insert(n.clone(), idx.clone());
                     break;
                 }
             }
@@ -699,6 +780,7 @@ mod test {
         WaveModel {
             wavelet_matrix,
             sequence,
+            sequence_index_map,
             bitmap,
             edge_map,
             data_table_nodes,
@@ -1113,5 +1195,48 @@ mod test {
             is_modified_expected,
             is_modified_found
         );
+    }
+
+    fn check_sequence_index() {
+        let model = create_directed_test_model();
+        let expected = vec![1, 2, 0, 0, 1];
+
+        match model.wavelet_matrix() {
+            QWT::QWT256(qwt) => {
+                for (i, e) in expected.into_iter().enumerate() {
+                    assert!(e == qwt.get(i).unwrap())
+                }
+            }
+            QWT::QWT512(qwt) => {
+                for (i, e) in expected.into_iter().enumerate() {
+                    assert!(e == qwt.get(i).unwrap())
+                }
+            }
+        };
+    }
+
+    #[test]
+    fn check_rank() {
+        let mut model = create_directed_test_model();
+        let n = 5; // Kinda weird but n is not inclusive so you have to go one further even
+                   // when this value would be larger than the indexing of a Vec
+        let data = model.rank("v2".to_owned(), n).unwrap();
+        assert!(data == 2);
+    }
+
+    #[test]
+    fn check_access() {
+        let mut model = create_directed_test_model();
+        let n = 2;
+        let data = model.access(n).unwrap();
+        assert!(data.0 == "v1".to_owned());
+    }
+
+    #[test]
+    fn check_select() {
+        let mut model = create_directed_test_model();
+        let n = 2;
+        let data = model.select("v2".to_owned(), n).unwrap();
+        assert!(data == 4);
     }
 }
