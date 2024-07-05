@@ -225,7 +225,7 @@ where
     /// Provides the option to update a label on some node.
     /// Returns a NodeNotFound error, if the index cannot be found.
     ///
-    /// Searches inside of the underlying petrgraph for the node as provided by its index and
+    /// Searches inside of the underlying petgraph for the node as provided by its index and
     /// gets its label reference. Breaks and returns an error if the node cannot be found.
     /// Afterwards searches inside of the corresponding label-to-weight-table with the found label
     /// and only then updates the label on both structures.
@@ -446,6 +446,8 @@ mod test {
     use crate::wavegraph::GraphModel;
     use crate::wavegraph::WaveModel;
     use std::collections::HashMap;
+    use petgraph::visit::IntoEdges;
+    use petgraph::visit::IntoNodeIdentifiers;
     use sucds::bit_vectors::Rank9Sel;
 
     fn create_directed_test_graph() -> GraphModel<String, f64, f64, petgraph::prelude::Directed> {
@@ -785,5 +787,51 @@ mod test {
                 assert!(false);
             }
         }
+    }
+
+    #[test]
+    fn check_update_node_label() {
+        #![allow(unused_variables)]
+        let mut graph = create_directed_test_graph();
+        let _ = graph.update_node_label(graph.graph.node_indices().into_iter().next().unwrap(), "v5".to_string());
+        let found = graph.to_adjacency_list();
+        let expected = vec![
+            ("v5".to_string(), vec!["v2".to_string(), "v3".to_string()]),
+            (
+                "v3".to_string(),
+                vec!["v2".to_string(), "v4".to_string(), "v5".to_string()],
+            ),
+            ("v2".to_string(), vec![]),
+            ("v4".to_string(), vec!["v2".to_string(), "v5".to_string()]),
+        ];
+
+        assert!(
+            found == expected,
+            "Adjacency list not as expected!\nExpected: {0:?}\nFound: {1:?}",
+            expected,
+            found
+        );
+    }
+
+    #[test]
+    fn check_update_edge_label() {
+        #![allow(unused_variables)]
+        let mut graph = create_directed_test_graph();
+        let _ = graph.update_edge_label(graph.graph.edge_indices().into_iter().next().unwrap(), "e8".to_string());
+        let (found, _): (Vec<_>, Vec<_>) = graph.data_table_edges.into_iter().unzip();
+        let expected = vec!["e8".to_string(),
+                                        "e2".to_string(),
+                                        "e3".to_string(),
+                                        "e4".to_string(),
+                                        "e5".to_string(),
+                                        "e6".to_string(),
+                                        "e7".to_string()];
+
+        assert!(
+            found == expected,
+            "Adjacency list not as expected!\nExpected: {0:?}\nFound: {1:?}",
+            expected,
+            found
+        );
     }
 }
