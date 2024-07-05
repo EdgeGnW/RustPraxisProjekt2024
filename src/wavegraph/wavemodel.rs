@@ -8,7 +8,7 @@ use serde::{
 use serde_with;
 use std::collections::HashMap;
 use std::hash::Hash;
-use sucds::bit_vectors::{Access, BitVector, Rank, Rank9Sel, Select};
+use sucds::bit_vectors::{BitVector, Rank9Sel};
 
 use petgraph::{graph::IndexType, EdgeType};
 
@@ -49,6 +49,8 @@ where
     data_table_nodes: Vec<(L, N)>,
     data_table_edges: Vec<(L, E)>,
     is_directed: bool,
+    #[serde(skip)]
+    is_modified: bool,
 }
 
 fn serialize_bitmap<S>(bitvec_rank9sel: &Rank9Sel, serializer: S) -> Result<S::Ok, S::Error>
@@ -132,6 +134,10 @@ where
         self.is_directed
     }
 
+    pub fn is_modified(&self) -> bool {
+        self.is_modified
+    }
+
     pub fn to_adjacency_list(&self) -> Vec<(L, Vec<L>)> {
         let mut adjacency_list: Vec<(L, Vec<L>)> = Vec::new();
         let mut sequence_iterator = self.sequence().iter();
@@ -197,7 +203,7 @@ where
     /// Otherwise returns the removed node as (label_node, weight_node)-tupel.
     /// Note that calling this function will also remove edges containing the to-be-removed-node.
     pub fn remove_node(&mut self, idx: usize) -> Result<(L, N), WaveModelError> {
-        let mut node_label_opt: Option<L> = None;
+        let node_label_opt: Option<L>;
         if let Some(label) = self.node_label(&idx) {
             // Can be safely unwrapped after this
             node_label_opt = Some(label.clone());
@@ -221,8 +227,8 @@ where
             let _ = self.edge_map.remove(&key);
         }
 
-        // Remove node from sequence and bitmap
-        self.remove_node_from_sequence_bitmap(&(node_label));
+        // Do not modify bitmap nor sequence, but remember by setting the modified-bit
+        self.is_modified = true;
 
         // Remove from data_table_nodes
         let old_node: (L, N) = self.data_table_nodes.swap_remove(idx);
@@ -271,12 +277,8 @@ where
             }
         }
 
-        // Update sequence and bitmap
-        self.add_to_sequence_and_bitmap_unchecked(node_from.clone(), node_to.clone());
-        if !is_directed {
-            // Also add `returning` edge if model is undirected
-            self.add_to_sequence_and_bitmap_unchecked(node_to, node_from);
-        }
+        // Do not modify bitmap nor sequence, but set modified bit
+        self.is_modified = true;
 
         return idx_new_edge;
     }
@@ -371,9 +373,8 @@ where
             self.edge_map.remove(&nodes.clone().unwrap());
         }
 
-        let (node_from, node_to) = (nodes.clone().unwrap().0, nodes.clone().unwrap().1);
-
-        self.remove_edge_from_sequence_bitmap_unchecked(&node_from, &node_to);
+        // Do not modify bitmap nor sequence, but set modified bit
+        self.is_modified = true;
 
         // Remove edge from data_table and swap in last edge
         let old_edge: (L, E) = self.data_table_edges.swap_remove(idx);
@@ -385,143 +386,6 @@ where
             nodes.clone().unwrap().0,
             nodes.clone().unwrap().1,
         ))
-    }
-
-    /// Inserts a bit at a given position into the bitmap of the WaveModel.
-    /// This is done by creating a new bitmap with the new bit at the desired position and then
-    /// overwiring the WaveModels current bitmap.
-    /// Does check the index and and may correct it depending on..
-    /// - index < 0: reverse indexing/indexing from end to start.
-    /// - index >= length of bitmap: inserts at the end.
-    /// - else: inserts at the given position.
-    fn insert_at_bitmap(&mut self, idx: usize, new_bit: bool) {
-        // Check out of bounds
-        let mut idx_checked = idx;
-        if idx >= self.bitmap.bit_vector().len() {
-            let mut bitvec: BitVector = self.bitmap.bit_vector().clone();
-            bitvec.push_bit(new_bit);
-            self.bitmap = Rank9Sel::new(bitvec.clone());
-            return; // early return!
-        } else if idx < 0 {
-            idx_checked = idx % self.bitmap.len();
-        }
-
-        let mut iter = self.bitmap.bit_vector().iter();
-        let mut new_bitmap = BitVector::with_capacity(self.bitmap.bit_vector().capacity() + 1);
-        let mut i = 0;
-
-        while let Some(old_bit) = iter.next() {
-            if i == idx_checked {
-                new_bitmap.push_bit(new_bit);
-            }
-            new_bitmap.push_bit(old_bit);
-            i += 1;
-        }
-        self.bitmap = Rank9Sel::new(new_bitmap);
-    }
-
-    fn add_to_sequence_and_bitmap_unchecked(&mut self, node_from: L, node_to: L) {
-        // UNSAFE: Because the existence of the 'to'-node is not explicitly checked
-        let idx_node_from = self
-            .data_table_nodes
-            .iter()
-            .position(|(l, _)| *l == node_from)
-            .unwrap();
-        if idx_node_from == self.data_table_nodes.len() - 1 {
-            // Simple case of just adding it to the end of the sequence and bitmap
-            self.sequence.push(node_to);
-
-            self.insert_at_bitmap(self.bitmap.len(), false);
-        } else {
-            // 'node from' is not the last node => the position to insert the information into the
-            // sequence and bitmap needs to be determined
-            let idx_start_next_node = self.bitmap.select1(idx_node_from + 1).unwrap();
-            let idx_in_sequence = self.bitmap.rank0(idx_start_next_node).unwrap(); // + 1 works for `returning` but not for initial edge
-            self.sequence.insert(idx_in_sequence, node_to);
-
-            // Insert bit at the correct position
-            self.insert_at_bitmap(idx_start_next_node, false);
-        }
-    }
-
-    /// Removes a node (by its label) from the sequence and bitmap (as these structures are
-    /// supposed to be synchronized). Does nothing if the label cannot be found in the sequence
-    /// (and by being synchronized with the bitmap this results in no occurence inside of the
-    /// bitmap.
-    fn remove_node_from_sequence_bitmap(&mut self, node_to: &L) {
-        // Remove every occurence of the `note_to` from the sequence and
-        // subsequently from the bitmap
-        while let Some(pos) = self.sequence.iter().position(|l| *l == *node_to) {
-            // Remove node from sequence
-            self.sequence.remove(pos);
-
-            // Acquire position inside bitmap
-            // Can be safely unwrapped, because its existence is checked by previously
-            // finding this element inside of the sequence and having the sequence
-            // and bitmap be synchronized.
-            let bitmap_pos = self.bitmap.select0(pos).unwrap();
-
-            // Manipulation of bitmap
-            let mut bitvec: Vec<bool> = self.bitmap.bit_vector().iter().collect();
-            bitvec.remove(bitmap_pos);
-
-            // Write to the bitmap of the WaveModel
-            self.bitmap = Rank9Sel::new(BitVector::from_bits(bitvec));
-        }
-    }
-
-    fn remove_edge_from_sequence_bitmap_unchecked(&mut self, node_from: &L, node_to: &L) {
-        // Remove every occurence of `node_to` from the range belonging
-        // to `node_from`
-        // It is assumed that `node_from` and `node_to` exist -> therefore `unchecked`
-
-        // Select the bitmap-index, of the indicator for `node_from`
-        // Can be unwrapped by definition of being synchronous with the sequence
-        let b_idx_node_from_start = self
-            .bitmap
-            .select1(self.node_index(node_from).unwrap())
-            .unwrap();
-
-        // Exit early if either `node_from` has no edges
-        if let Some(bit) = self.bitmap.access(b_idx_node_from_start + 1) {
-            if bit {
-                return;
-            }
-        } else {
-            // There are no edges belonging to `node_from`, because the bitmap
-            // ends after indicating the start of `node_from`
-            return;
-        }
-
-        // Select the sequence-index, of the first edge belonging to `node_from`
-        // Can be safely unwrapped, because the existence is checked beforehand
-        let s_idx_node_from_start = self.bitmap.rank0(b_idx_node_from_start).unwrap();
-        let mut s_idx_node_from_end = self.sequence.len();
-        if let Some(b_pos) = self.bitmap.select1(self.node_index(node_from).unwrap() + 1) {
-            s_idx_node_from_end = self.bitmap.rank0(b_pos).unwrap();
-        }
-
-        // Now dissect `node_to` from the sequence in regard to the allowed range
-        // Do this step-by-step, so we get the index of the then-modified sequence
-        while let Some(pos) = self
-            .sequence
-            .iter()
-            .skip(s_idx_node_from_start)
-            .take(s_idx_node_from_end - s_idx_node_from_start)
-            .position(|x| *x == *node_to)
-        {
-            let _ = self.sequence.remove(pos + s_idx_node_from_start);
-            let b_nth_zero = self.bitmap.rank0(b_idx_node_from_start).unwrap() + pos;
-            let b_idx = self.bitmap.select0(b_nth_zero).unwrap();
-            let mut bitvec: Vec<bool> = self.bitmap.bit_vector().iter().collect();
-            bitvec.remove(b_idx);
-            self.bitmap = Rank9Sel::new(BitVector::from_bits(bitvec));
-
-            // Reduce node_from_end index by one to correct for the position that was deleted
-            // This is necessary, because the next iteration uses this index to `take` a certain
-            // amount of edges from the sequence
-            s_idx_node_from_end -= 1;
-        }
     }
 
     /// Tries to find the corresponding index to the supplied node-label. Returns `None` if the
@@ -640,6 +504,7 @@ where
             data_table_nodes,
             data_table_edges,
             is_directed,
+            is_modified: false,
         };
 
         Ok(wavemodel)
@@ -669,6 +534,7 @@ mod test {
             data_table_nodes,
             data_table_edges,
             is_directed: true,
+            is_modified: false,
         }
     }
 
@@ -688,6 +554,7 @@ mod test {
             data_table_nodes,
             data_table_edges,
             is_directed: false,
+            is_modified: false,
         }
     }
 
@@ -742,6 +609,7 @@ mod test {
             data_table_nodes,
             data_table_edges,
             is_directed: true,
+            is_modified: false,
         }
     }
 
@@ -800,6 +668,7 @@ mod test {
             data_table_nodes,
             data_table_edges,
             is_directed: false,
+            is_modified: false,
         }
     }
 
@@ -846,8 +715,6 @@ mod test {
         let mut model = create_empty_directed_test_model();
         model.add_node("v1".to_string(), 42 as usize);
 
-        let sequence_expected: Vec<String> = vec![];
-        let bitmap_expected = Rank9Sel::new(BitVector::from_bits(vec![]));
         let edge_map_expected = HashMap::<(String, String), Vec<usize>>::new();
         let data_table_nodes_expected = vec![("v1".to_string(), 42 as usize)];
         let data_table_edges_expected = vec![];
@@ -855,8 +722,8 @@ mod test {
 
         check_members_equal_to(
             &model,
-            &sequence_expected,
-            &bitmap_expected,
+            &(model.sequence),
+            &(model.bitmap),
             &edge_map_expected,
             &data_table_nodes_expected,
             &data_table_edges_expected,
@@ -869,22 +736,81 @@ mod test {
         let mut model = create_empty_undirected_test_model();
         model.add_node("v1".to_string(), 42 as usize);
 
-        let sequence_expected: Vec<String> = vec![];
-        let bitmap_expected = Rank9Sel::new(BitVector::from_bits(vec![]));
         let edge_map_expected = HashMap::<(String, String), Vec<usize>>::new();
         let data_table_nodes_expected = vec![("v1".to_string(), 42 as usize)];
         let data_table_edges_expected = vec![];
-        let is_directed_expected = true;
+        let is_directed_expected = false;
 
         check_members_equal_to(
             &model,
-            &sequence_expected,
-            &bitmap_expected,
+            &(model.sequence),
+            &(model.bitmap),
             &edge_map_expected,
             &data_table_nodes_expected,
             &data_table_edges_expected,
             &is_directed_expected,
         );
+    }
+
+    #[test]
+    fn check_remove_node_directed() {
+        let mut model = create_directed_test_model();
+        if let Ok(_) = model.remove_node(2 as usize) {
+            let mut edge_map_expected = HashMap::<(String, String), Vec<usize>>::new();
+            edge_map_expected.insert(("v1".to_string(), "v2".to_string()), vec![0 as usize]);
+            edge_map_expected.insert(("v2".to_string(), "v1".to_string()), vec![1 as usize]);
+
+            let data_table_nodes_expected = vec![("v1".to_string(), 0), ("v2".to_string(), 1)];
+            let data_table_edges_expected = vec![("e1".to_string(), 0), ("e3".to_string(), 1)];
+
+            let is_directed_expected = true;
+
+            check_members_equal_to(
+                &model,
+                &(model.sequence),
+                &(model.bitmap),
+                &edge_map_expected,
+                &data_table_nodes_expected,
+                &data_table_edges_expected,
+                &is_directed_expected,
+            );
+        } else {
+            assert!(false, "Call to `remove_node` function failed!");
+        }
+    }
+
+    #[test]
+    fn check_remove_node_undirected() {
+        let mut model = create_undirected_test_model();
+        if let Ok(_) = model.remove_node(1 as usize) {
+            let mut edge_map_expected = HashMap::<(String, String), Vec<usize>>::new();
+            edge_map_expected.insert(("v1".to_string(), "v2".to_string()), vec![0 as usize]);
+            edge_map_expected.insert(("v1".to_string(), "v3".to_string()), vec![1 as usize]);
+            edge_map_expected.insert(("v3".to_string(), "v1".to_string()), vec![2 as usize]);
+            edge_map_expected.insert(("v3".to_string(), "v2".to_string()), vec![3 as usize]);
+
+            let data_table_nodes_expected = vec![("v1".to_string(), 0), ("v3".to_string(), 2)];
+            let data_table_edges_expected = vec![
+                ("e1".to_string(), 0),
+                ("e2".to_string(), 1),
+                ("e6".to_string(), 2),
+                ("e5".to_string(), 3),
+            ];
+
+            let is_directed_expected = false;
+
+            check_members_equal_to(
+                &model,
+                &(model.sequence),
+                &(model.bitmap),
+                &edge_map_expected,
+                &data_table_nodes_expected,
+                &data_table_edges_expected,
+                &is_directed_expected,
+            );
+        } else {
+            assert!(false, "Call to `remove_node` function failed!");
+        }
     }
 
     #[test]
@@ -896,19 +822,6 @@ mod test {
             "v1".to_string(),
             "v2".to_string(),
         ) {
-            let sequence_expected: Vec<String> = vec![
-                "v2".to_string(),
-                "v3".to_string(),
-                "v2".to_string(), // newly added edge
-                "v1".to_string(),
-                "v1".to_string(),
-                "v2".to_string(),
-            ];
-
-            let bitmap_expected = Rank9Sel::new(BitVector::from_bits(vec![
-                true, false, false, false, true, false, true, false, false,
-            ]));
-
             let mut edge_map_expected = HashMap::<(String, String), Vec<usize>>::new();
             edge_map_expected.insert(
                 ("v1".to_string(), "v2".to_string()),
@@ -938,8 +851,8 @@ mod test {
 
             check_members_equal_to(
                 &model,
-                &sequence_expected,
-                &bitmap_expected,
+                &(model.sequence),
+                &(model.bitmap),
                 &edge_map_expected,
                 &data_table_nodes_expected,
                 &data_table_edges_expected,
@@ -960,21 +873,6 @@ mod test {
             "v1".to_string(),
             "v2".to_string(),
         ) {
-            let sequence_expected: Vec<String> = vec![
-                "v2".to_string(),
-                "v3".to_string(),
-                "v2".to_string(), // newly added edge
-                "v1".to_string(),
-                "v3".to_string(),
-                "v1".to_string(), // `returning` edge for undirected graph
-                "v1".to_string(),
-                "v2".to_string(),
-            ];
-
-            let bitmap_expected = Rank9Sel::new(BitVector::from_bits(vec![
-                true, false, false, false, true, false, false, false, true, false, false,
-            ]));
-
             let mut edge_map_expected = HashMap::<(String, String), Vec<usize>>::new();
             edge_map_expected.insert(
                 ("v1".to_string(), "v2".to_string()),
@@ -1005,12 +903,12 @@ mod test {
                 ("e99".to_string(), 42),
             ];
 
-            let is_directed_expected = true;
+            let is_directed_expected = false;
 
             check_members_equal_to(
                 &model,
-                &sequence_expected,
-                &bitmap_expected,
+                &(model.sequence),
+                &(model.bitmap),
                 &edge_map_expected,
                 &data_table_nodes_expected,
                 &data_table_edges_expected,
@@ -1025,18 +923,6 @@ mod test {
     fn check_remove_edge_directed() {
         let mut model = create_directed_test_model();
         if let Ok(_) = model.remove_edge(3 as usize) {
-            let sequence_expected: Vec<String> = vec![
-                "v2".to_string(),
-                "v3".to_string(),
-                "v1".to_string(),
-                // removed edge: "v1".to_string(),
-                "v2".to_string(),
-            ];
-
-            let bitmap_expected = Rank9Sel::new(BitVector::from_bits(vec![
-                true, false, false, true, false, true, false,
-            ]));
-
             let mut edge_map_expected = HashMap::<(String, String), Vec<usize>>::new();
             edge_map_expected.insert(("v1".to_string(), "v2".to_string()), vec![0 as usize]);
             edge_map_expected.insert(("v1".to_string(), "v3".to_string()), vec![1 as usize]);
@@ -1060,15 +946,56 @@ mod test {
 
             check_members_equal_to(
                 &model,
-                &sequence_expected,
-                &bitmap_expected,
+                &(model.sequence),
+                &(model.bitmap),
                 &edge_map_expected,
                 &data_table_nodes_expected,
                 &data_table_edges_expected,
                 &is_directed_expected,
             );
         } else {
-            assert!(false, "Call to `add_edge` function failed!");
+            assert!(false, "Call to `remove_edge` function failed!");
+        }
+    }
+
+    #[test]
+    fn check_remove_edge_undirected() {
+        let mut model = create_undirected_test_model();
+        if let Ok(_) = model.remove_edge(2 as usize) {
+            let mut edge_map_expected = HashMap::<(String, String), Vec<usize>>::new();
+            edge_map_expected.insert(("v1".to_string(), "v2".to_string()), vec![0 as usize]);
+            edge_map_expected.insert(("v1".to_string(), "v3".to_string()), vec![1 as usize]);
+            edge_map_expected.insert(("v2".to_string(), "v3".to_string()), vec![3 as usize]);
+            edge_map_expected.insert(("v3".to_string(), "v1".to_string()), vec![4 as usize]);
+            edge_map_expected.insert(("v3".to_string(), "v2".to_string()), vec![5 as usize]);
+
+            let data_table_nodes_expected = vec![
+                ("v1".to_string(), 0),
+                ("v2".to_string(), 1),
+                ("v3".to_string(), 2),
+            ];
+
+            let data_table_edges_expected = vec![
+                ("e1".to_string(), 0),
+                ("e2".to_string(), 1),
+                ("e6".to_string(), 5),
+                ("e4".to_string(), 3),
+                ("e5".to_string(), 4),
+            ];
+
+            let is_directed_expected = false;
+
+            check_members_equal_to(
+                &model,
+                &(model.sequence),
+                &(model.bitmap),
+                &edge_map_expected,
+                &data_table_nodes_expected,
+                &data_table_edges_expected,
+                &is_directed_expected,
+            );
+        } else {
+            assert!(false, "Call to `remove_edge` function failed!");
         }
     }
 
@@ -1123,6 +1050,12 @@ mod test {
             "data_table_edges is not as expected!\nExpected: {0:?}\nFound: {1:?}",
             data_table_edges_expected,
             data_table_edges_found
+        );
+
+        let is_directed_found = &model.is_directed;
+        assert!(
+            *is_directed_found == *is_directed_expected,
+            "WaveModel direction has unexpectedly changed!",
         );
     }
 }
