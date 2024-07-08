@@ -1291,4 +1291,56 @@ mod test {
         let data = model.select("v2".to_owned(), n).unwrap();
         assert!(data == 4);
     }
+
+    #[test]
+    fn check_reconstruct_qwt() {
+        let mut model = create_undirected_test_model();
+        if let Err(_) = model.remove_node(&(1 as usize)) {
+            assert!(false, "Call to `remove_node` function failed!");
+        }
+
+        // Do the reconstruction
+        model.reconstruct_qwt();
+
+        let sequence_found = model.sequence.to_owned();
+        let sequence_index_map_found = model.sequence_index_map.to_owned();
+        let bitmap_found = model.bitmap.to_owned();
+
+        // Wavelet matrix cannot be checked properly, so only check other data-structures,
+        // especially the sequence-index, which is used as the input for the wavelet-matrix
+        let sequence_expected: Vec<String> = vec!["v3".to_string(), "v1".to_string()];
+
+        let mut sequence_index_map_expected: HashMap<String, usize> = HashMap::new();
+        sequence_index_map_expected.insert(
+            "v1".to_string(),
+            model.node_index(&"v1".to_string()).unwrap(),
+        );
+        sequence_index_map_expected.insert(
+            "v3".to_string(),
+            model.node_index(&"v3".to_string()).unwrap(),
+        );
+
+        let bitvec = BitVector::from_bits(vec![true, false, true, false]);
+        let bitmap_expected = Rank9Sel::new(bitvec);
+
+        // Assertion time!
+        assert!(
+            sequence_found == sequence_expected,
+            "sequence is not as expected!\nExpected: {0:?}\nFound: {1:?}",
+            sequence_expected,
+            sequence_found
+        );
+        assert!(
+            sequence_index_map_found == sequence_index_map_expected,
+            "sequence_index_map is not as expected!\nExpected: {0:?}\nFound: {1:?}",
+            sequence_index_map_expected,
+            sequence_index_map_found
+        );
+        assert!(
+            bitmap_found == bitmap_expected,
+            "bitmap is not as expected!\nExpected: {0:?}\nFound: {1:?}",
+            bitmap_expected,
+            bitmap_found
+        );
+    }
 }
