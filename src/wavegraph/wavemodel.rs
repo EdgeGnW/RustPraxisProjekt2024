@@ -7,6 +7,7 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 use serde_with;
+use std::cmp::Ordering;
 use std::hash::Hash;
 use std::{collections::HashMap, usize};
 use sucds::bit_vectors::{BitVector, Rank9Sel};
@@ -477,12 +478,63 @@ where
         return Ok(idxs);
     }
 
+    /// Reconstruct the wavelet-matrix, sequence and bitmap to represent the previously added
+    /// modifications to the model.
     fn reconstruct_qwt(&mut self) {
-        todo!()
+        // Sequence & bitmap
+        let mut sequence: Vec<L> = Vec::new();
+        let mut bitvec: BitVector = BitVector::new();
+
+        // Order of sequence (and bitmap) is in order of data_table_nodes
+        for (node_from, _) in &self.data_table_nodes {
+            bitvec.push_bit(true);
+            let mut outgoing_nodes = self
+                .edge_map
+                .iter()
+                .filter(|((from, _), _)| *from == *node_from)
+                .map(|((_, to), _)| to)
+                .collect::<Vec<&L>>();
+
+            outgoing_nodes.sort_unstable_by(|a, b| {
+                if self.node_index(a).unwrap() < self.node_index(b).unwrap() {
+                    Ordering::Less
+                } else if self.node_index(a).unwrap() > self.node_index(b).unwrap() {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            });
+
+            for node_to in outgoing_nodes {
+                bitvec.push_bit(false);
+                sequence.push((*node_to).clone());
+            }
+        }
+        self.sequence = sequence.clone();
+        self.bitmap = Rank9Sel::new(bitvec);
+
+        let sequence_indices: Vec<usize> = sequence
+            .iter()
+            .map(|l| self.node_index(l).unwrap())
+            .collect();
+        let mut sequence_index_map: HashMap<L, usize> = HashMap::new();
+
+        for (label, idx) in sequence
+            .iter()
+            .cloned()
+            .zip(sequence_indices.iter().cloned())
+            .collect::<Vec<(L, usize)>>()
+        {
+            sequence_index_map.insert(label, idx);
+        }
+        self.sequence_index_map = sequence_index_map;
+
+        // Wavelet-matrix
+        self.wavelet_matrix = QWT::QWT256(qwt::QWT256::from(sequence_indices));
     }
 
     pub fn rank(&mut self, label: L, n: usize) -> Option<usize> {
-        //self.reconstruct_qwt();
+        self.reconstruct_qwt();
 
         let index = match self.sequence_index_map.get(&label) {
             Some(index) => *index,
@@ -496,7 +548,7 @@ where
     }
 
     pub fn access(&mut self, n: usize) -> Option<&(L, N)> {
-        //self.reconstruct_qwt();
+        self.reconstruct_qwt();
 
         match self.wavelet_matrix {
             QWT::QWT256(ref qwt) => {
@@ -519,7 +571,7 @@ where
     }
 
     pub fn select(&mut self, label: L, n: usize) -> Option<usize> {
-        //self.reconstruct_qwt();
+        self.reconstruct_qwt();
 
         let index = match self.sequence_index_map.get(&label) {
             Some(index) => *index,
