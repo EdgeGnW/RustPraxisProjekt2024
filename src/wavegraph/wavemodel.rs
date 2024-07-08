@@ -7,6 +7,7 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 use serde_with;
+use std::cmp::Ordering;
 use std::hash::Hash;
 use std::{collections::HashMap, usize};
 use sucds::bit_vectors::{BitVector, Rank9Sel};
@@ -477,12 +478,63 @@ where
         return Ok(idxs);
     }
 
+    /// Reconstruct the wavelet-matrix, sequence and bitmap to represent the previously added
+    /// modifications to the model.
     fn reconstruct_qwt(&mut self) {
-        todo!()
+        // Sequence & bitmap
+        let mut sequence: Vec<L> = Vec::new();
+        let mut bitvec: BitVector = BitVector::new();
+
+        // Order of sequence (and bitmap) is in order of data_table_nodes
+        for (node_from, _) in &self.data_table_nodes {
+            bitvec.push_bit(true);
+            let mut outgoing_nodes = self
+                .edge_map
+                .iter()
+                .filter(|((from, _), _)| *from == *node_from)
+                .map(|((_, to), _)| to)
+                .collect::<Vec<&L>>();
+
+            outgoing_nodes.sort_unstable_by(|a, b| {
+                if self.node_index(a).unwrap() < self.node_index(b).unwrap() {
+                    Ordering::Less
+                } else if self.node_index(a).unwrap() > self.node_index(b).unwrap() {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            });
+
+            for node_to in outgoing_nodes {
+                bitvec.push_bit(false);
+                sequence.push((*node_to).clone());
+            }
+        }
+        self.sequence = sequence.clone();
+        self.bitmap = Rank9Sel::new(bitvec);
+
+        let sequence_indices: Vec<usize> = sequence
+            .iter()
+            .map(|l| self.node_index(l).unwrap())
+            .collect();
+        let mut sequence_index_map: HashMap<L, usize> = HashMap::new();
+
+        for (label, idx) in sequence
+            .iter()
+            .cloned()
+            .zip(sequence_indices.iter().cloned())
+            .collect::<Vec<(L, usize)>>()
+        {
+            sequence_index_map.insert(label, idx);
+        }
+        self.sequence_index_map = sequence_index_map;
+
+        // Wavelet-matrix
+        self.wavelet_matrix = QWT::QWT256(qwt::QWT256::from(sequence_indices));
     }
 
     pub fn rank(&mut self, label: L, n: usize) -> Option<usize> {
-        //self.reconstruct_qwt();
+        self.reconstruct_qwt();
 
         let index = match self.sequence_index_map.get(&label) {
             Some(index) => *index,
@@ -496,7 +548,7 @@ where
     }
 
     pub fn access(&mut self, n: usize) -> Option<&(L, N)> {
-        //self.reconstruct_qwt();
+        self.reconstruct_qwt();
 
         match self.wavelet_matrix {
             QWT::QWT256(ref qwt) => {
@@ -519,7 +571,7 @@ where
     }
 
     pub fn select(&mut self, label: L, n: usize) -> Option<usize> {
-        //self.reconstruct_qwt();
+        self.reconstruct_qwt();
 
         let index = match self.sequence_index_map.get(&label) {
             Some(index) => *index,
@@ -1238,5 +1290,57 @@ mod test {
         let n = 2;
         let data = model.select("v2".to_owned(), n).unwrap();
         assert!(data == 4);
+    }
+
+    #[test]
+    fn check_reconstruct_qwt() {
+        let mut model = create_undirected_test_model();
+        if let Err(_) = model.remove_node(&(1 as usize)) {
+            assert!(false, "Call to `remove_node` function failed!");
+        }
+
+        // Do the reconstruction
+        model.reconstruct_qwt();
+
+        let sequence_found = model.sequence.to_owned();
+        let sequence_index_map_found = model.sequence_index_map.to_owned();
+        let bitmap_found = model.bitmap.to_owned();
+
+        // Wavelet matrix cannot be checked properly, so only check other data-structures,
+        // especially the sequence-index, which is used as the input for the wavelet-matrix
+        let sequence_expected: Vec<String> = vec!["v3".to_string(), "v1".to_string()];
+
+        let mut sequence_index_map_expected: HashMap<String, usize> = HashMap::new();
+        sequence_index_map_expected.insert(
+            "v1".to_string(),
+            model.node_index(&"v1".to_string()).unwrap(),
+        );
+        sequence_index_map_expected.insert(
+            "v3".to_string(),
+            model.node_index(&"v3".to_string()).unwrap(),
+        );
+
+        let bitvec = BitVector::from_bits(vec![true, false, true, false]);
+        let bitmap_expected = Rank9Sel::new(bitvec);
+
+        // Assertion time!
+        assert!(
+            sequence_found == sequence_expected,
+            "sequence is not as expected!\nExpected: {0:?}\nFound: {1:?}",
+            sequence_expected,
+            sequence_found
+        );
+        assert!(
+            sequence_index_map_found == sequence_index_map_expected,
+            "sequence_index_map is not as expected!\nExpected: {0:?}\nFound: {1:?}",
+            sequence_index_map_expected,
+            sequence_index_map_found
+        );
+        assert!(
+            bitmap_found == bitmap_expected,
+            "bitmap is not as expected!\nExpected: {0:?}\nFound: {1:?}",
+            bitmap_expected,
+            bitmap_found
+        );
     }
 }
