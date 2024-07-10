@@ -11,5 +11,6 @@ Benchmark Performanz und Speicherplatz
     gegen Petgraph
     gegen Gruppe 1
     Deutung                                     L
+    Weitere Features
 Fazit                                           PLAT
 
