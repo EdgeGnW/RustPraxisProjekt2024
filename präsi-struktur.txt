@@ -1,0 +1,15 @@
+
+Einleitung                                      P
+Ziel des Projekts                               L
+erste Ideen der Implementation                  T
+Umsetzung
+    letztendliche Entscheidung                  P
+    Probleme bei der Umsetzung
+        Trennung der beiden Repräsentationen    A
+        Kleinhalten des Speicherplatzes         A
+Benchmark Performanz und Speicherplatz
+    gegen Petgraph
+    gegen Gruppe 1
+    Deutung                                     L
+Fazit                                           PLAT
+
