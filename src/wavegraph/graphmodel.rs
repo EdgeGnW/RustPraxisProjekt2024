@@ -13,6 +13,9 @@ use sucds::bit_vectors::{prelude::*, Rank9Sel};
 //Ty - EdgeType | Directed or Undirected
 //Ix - IndexType | node/edge indexing. u8/u16/u32/usize. https://docs.rs/petgraph/latest/petgraph/graph/trait.IndexType.html#foreign-impls
 
+/// All-purpose error-enum for returning (more or less) straight-forward error messages, which the
+/// user can encounter when using the (pet)graphmodel-based implementation.
+/// Uses `thiserror` for handling messaging of errors.
 #[derive(thiserror::Error, Debug)]
 pub enum GraphModelError {
     #[error("THE CONVERSION WENT WRONG. TRIED TO CONVERT FROM {wavemodel_direction} WAVEMODEL TO {graphmodel_direction} GRAPHMODEL")]
@@ -33,6 +36,20 @@ pub enum GraphModelError {
 /// Has generic support for the label (L), node weight (N) and edge weight (E). The edge type (Ty)
 /// has to be of either directed or undirected type. The index type (Ix) has different unsigned
 /// variants ranging from u8 to u64 and eventually to usize.
+///
+/// # Examples
+///
+/// ```
+/// use RustPraxisProjekt2024::wavegraph::GraphModel;
+///
+/// let mut graph: GraphModel<String, f64, f64, petgraph::prelude::Directed> =
+///            GraphModel::new_directed();
+///
+///        let _v1 = graph.add_node("v1".to_string(), 1.0);
+///        let _v2 = graph.add_node("v2".to_string(), 1.0);
+///
+///        let _e1 = graph.add_edge(_v1, _v2, "e1".to_string(), 1.0);
+/// ```
 #[derive(Clone)]
 pub struct GraphModel<L, N, E, Ty, Ix = DefaultIx>
 where
@@ -49,6 +66,16 @@ where
     Ix: IndexType,
     L: Clone + Ord + Hash,
 {
+    /// Creates a new empty directed GraphModel.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use RustPraxisProjekt2024::wavegraph::GraphModel;
+    ///
+    /// let mut graph: GraphModel<String, f64, f64, petgraph::prelude::Directed> =
+    ///            GraphModel::new_directed();
+    /// ```
     pub fn new_directed() -> Self {
         GraphModel {
             graph: DiGraph::<L, L, Ix>::default(),
@@ -63,6 +90,16 @@ where
     Ix: IndexType,
     L: Clone + Ord + Hash,
 {
+    /// Creates a new empty undirected GraphModel.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use RustPraxisProjekt2024::wavegraph::GraphModel;
+    ///
+    /// let mut graph: GraphModel<String, f64, f64, petgraph::prelude::Undirected> =
+    ///            GraphModel::new_undirected();
+    /// ```
     pub fn new_undirected() -> Self {
         GraphModel {
             graph: UnGraph::<L, L, Ix>::default(),
@@ -78,6 +115,38 @@ where
     Ix: IndexType,
     L: Clone + Ord + Hash,
 {
+    /// Returns an adjacency list based on the current state of the `GraphModel`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use RustPraxisProjekt2024::wavegraph::GraphModel;
+    ///
+    /// let mut graph: GraphModel<String, f64, f64, petgraph::prelude::Directed> =
+    ///            GraphModel::new_directed();
+    /// let _v1 = graph.add_node("v1".to_string(), 1.0);
+    /// let _v3 = graph.add_node("v3".to_string(), 1.0);
+    /// let _v2 = graph.add_node("v2".to_string(), 1.5);
+    ///
+    /// // Edges:
+    /// // _v1 -> _v2
+    /// let _e1 = graph.add_edge(_v1, _v2, "e1".to_string(), 1.0);
+    /// // _v1 -> _v3
+    /// let _e2 = graph.add_edge(_v1, _v3, "e2".to_string(), 1.0);
+    /// // _v3 -> _v1
+    /// let _e3 = graph.add_edge(_v3, _v1, "e3".to_string(), 1.0);
+    /// // _v3 -> _v2
+    /// let _e4 = graph.add_edge(_v3, _v2, "e4".to_string(), 1.0);
+    ///
+    /// let adjacency_list = graph.to_adjacency_list();
+    ///
+    /// println!("{:?}", adjacency_list);
+    /// assert!(adjacency_list == vec![
+    ///     ("v1".to_string(), vec!["v2".to_string(), "v3".to_string()]),
+    ///     ("v3".to_string(), vec!["v1".to_string(), "v2".to_string()]),
+    ///     ("v2".to_string(), vec![])
+    /// ]);
+    /// ```
     pub fn to_adjacency_list(&self) -> Vec<(L, Vec<L>)> {
         let nodes = self.graph.node_indices();
         let mut adjacency_list = Vec::<(L, Vec<L>)>::new();
@@ -102,19 +171,53 @@ where
         adjacency_list
     }
 
+    /// Transforms the `Graphmodel` into two data-tables containing the node and edge labels as
+    /// well as weights.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use RustPraxisProjekt2024::wavegraph::GraphModel;
+    ///
+    /// let mut graph: GraphModel<String, f64, f64, petgraph::prelude::Directed> =
+    ///            GraphModel::new_directed();
+    /// let _v1 = graph.add_node("v1".to_string(), 1.0);
+    /// let _v3 = graph.add_node("v3".to_string(), 1.0);
+    /// let _v2 = graph.add_node("v2".to_string(), 1.5);
+    ///
+    /// // Edges:
+    /// // _v1 -> _v2
+    /// let _e1 = graph.add_edge(_v1, _v2, "e1".to_string(), 1.0);
+    /// // _v1 -> _v3
+    /// let _e2 = graph.add_edge(_v1, _v3, "e2".to_string(), 1.0);
+    /// // _v3 -> _v1
+    /// let _e3 = graph.add_edge(_v3, _v1, "e3".to_string(), 1.0);
+    /// // _v3 -> _v2
+    /// let _e4 = graph.add_edge(_v3, _v2, "e4".to_string(), 1.0);
+    ///
+    /// let (data_table_nodes, data_table_edges) = graph.into_data_tables();
+    /// assert!(data_table_nodes == vec![
+    ///     ("v1".to_string(), 1.0),
+    ///     ("v3".to_string(), 1.0),
+    ///     ("v2".to_string(), 1.5),
+    /// ]);
+    ///
+    /// assert!(data_table_edges == vec![
+    ///     ("e1".to_string(), 1.0),
+    ///     ("e2".to_string(), 1.0),
+    ///     ("e3".to_string(), 1.0),
+    ///     ("e4".to_string(), 1.0),
+    /// ]);
+    /// ```
     pub fn into_data_tables(self) -> (Vec<(L, N)>, Vec<(L, E)>) {
         (self.data_table_nodes, self.data_table_edges)
     }
 
-    // Get label of some node
+    /// Gets the label of some node by its index.
     pub fn node_label(&self, idx: NodeIndex<Ix>) -> Option<&L> {
         self.graph.node_weight(idx)
     }
 
-    //Here we are adding a Node. This node will be stored inside of our internal graph. The real
-    //weight will be stored inside of our data_table. To access the stored data we just need the
-    //index of the node as it is the same index in our data table. Preferably all the weights
-    //should be De-/Serializable.
     /// Adds a new node with its own label and weight to the graph.
     /// Returns the index pointing to the newly created node.
     pub fn add_node(&mut self, label: L, weight: N) -> NodeIndex<Ix> {
@@ -122,15 +225,12 @@ where
         self.data_table_nodes.insert(node.index(), (label, weight));
         node
     }
-    //We are adding an Edge between two Nodes. The real weight is being stored in a separate Vec.
-    //To access it you need to get the index of the node. That index will be the one where the data
-    //is stored.Preferably all the weights should be De-/Serializable.
+
+    /// Gets the label of some edge by its index.
     pub fn edge_label(&self, idx: EdgeIndex<Ix>) -> Option<&L> {
         self.graph.edge_weight(idx)
     }
-    //We are adding an Edge between two Nodes. The real weight is being stored in a separate Vec.
-    //To access it you need to get the index of the node. That index will be the one where the data
-    //is stored.Preferably all the weights should be De-/Serializable.
+
     /// Adds a new edge with its own label and weight to the graph.
     /// Returns the index pointing to the newly created edge.
     pub fn add_edge(
@@ -147,6 +247,39 @@ where
 
     /// Removes a node from the graph. If the node was given a label, this function returns the
     /// label paired with its weight after removing both from the structure.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use RustPraxisProjekt2024::wavegraph::GraphModel;
+    ///
+    /// let mut graph: GraphModel<String, f64, f64, petgraph::prelude::Directed> =
+    ///            GraphModel::new_directed();
+    /// let _v1 = graph.add_node("v1".to_string(), 1.0);
+    /// let _v3 = graph.add_node("v3".to_string(), 1.0);
+    /// let _v2 = graph.add_node("v2".to_string(), 1.5);
+    ///
+    /// // Edges:
+    /// // _v1 -> _v2
+    /// let _e1 = graph.add_edge(_v1, _v2, "e1".to_string(), 1.0);
+    /// // _v1 -> _v3
+    /// let _e2 = graph.add_edge(_v1, _v3, "e2".to_string(), 1.0);
+    /// // _v3 -> _v1
+    /// let _e3 = graph.add_edge(_v3, _v1, "e3".to_string(), 1.0);
+    /// // _v3 -> _v2
+    /// let _e4 = graph.add_edge(_v3, _v2, "e4".to_string(), 1.0);
+    ///
+    /// let label_weight = graph.remove_node(_v1.clone());
+    /// let label_some = label_weight.clone().unwrap().0;
+    /// let weight_some = label_weight.unwrap().1;
+    /// assert!(label_some == "v1".to_string());
+    /// assert!(weight_some == 1.0);
+    ///
+    /// // Index is remove-swapped by underlying petgraph, therefore the
+    /// // following call will NOT return None!
+    /// let label_none = graph.node_label(_v1);
+    /// assert!(*label_none.unwrap() == "v2".to_string());
+    /// ```
     pub fn remove_node(&mut self, a: NodeIndex<Ix>) -> Option<(L, N)> {
         //Remove node removes the node if it exists and it replaces it with the last node that was
         //added. The indices are also shifted accordingly.
@@ -164,6 +297,39 @@ where
 
     /// Removes an edge from the graph. If the edge was given a label, this function returns the
     /// label paired with its weight after removing both from the structure.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use RustPraxisProjekt2024::wavegraph::GraphModel;
+    ///
+    /// let mut graph: GraphModel<String, f64, f64, petgraph::prelude::Directed> =
+    ///            GraphModel::new_directed();
+    /// let _v1 = graph.add_node("v1".to_string(), 1.0);
+    /// let _v3 = graph.add_node("v3".to_string(), 1.0);
+    /// let _v2 = graph.add_node("v2".to_string(), 1.5);
+    ///
+    /// // Edges:
+    /// // _v1 -> _v2
+    /// let _e1 = graph.add_edge(_v1, _v2, "e1".to_string(), 1.0);
+    /// // _v1 -> _v3
+    /// let _e2 = graph.add_edge(_v1, _v3, "e2".to_string(), 1.0);
+    /// // _v3 -> _v1
+    /// let _e3 = graph.add_edge(_v3, _v1, "e3".to_string(), 1.0);
+    /// // _v3 -> _v2
+    /// let _e4 = graph.add_edge(_v3, _v2, "e4".to_string(), 1.0);
+    ///
+    /// let label_weight = graph.remove_edge(_e1.clone());
+    /// let label_some = label_weight.clone().unwrap().0;
+    /// let weight_some = label_weight.unwrap().1;
+    /// assert!(label_some == "e1".to_string());
+    /// assert!(weight_some == 1.0);
+    ///
+    /// // Index is remove-swapped by underlying petgraph, therefore the
+    /// // following call will NOT return None!
+    /// let label_none = graph.edge_label(_e1);
+    /// assert!(*label_none.unwrap() == "e4".to_string());
+    /// ```
     pub fn remove_edge(&mut self, e: EdgeIndex<Ix>) -> Option<(L, E)> {
         //Practically the same as with the nodes.
         let _label = match self.graph.remove_edge(e) {
@@ -178,6 +344,8 @@ where
         Some(label_weight)
     }
 
+    /// Creates a new GraphModel where the underlying graph, as well as the data-tables are created
+    /// with pre-defined capacities.
     pub fn with_capacity(nodes: usize, edges: usize) -> Self {
         GraphModel {
             graph: Graph::with_capacity(nodes, edges),
@@ -186,15 +354,46 @@ where
         }
     }
 
+    /// Returns an iterator over indices pointing towards the edges of the graph.
     pub fn edge_indicies(&self) -> EdgeIndices<Ix> {
         self.graph.edge_indices()
     }
 
+    /// Gives access to both node indices forming an edge `e`.
+    /// Will return None, if the edge-index is out of bounds.
     pub fn edge_endpoints(&self, e: EdgeIndex<Ix>) -> Option<(NodeIndex<Ix>, NodeIndex<Ix>)> {
         self.graph.edge_endpoints(e)
     }
 
     /// Returns the bitmap necessary to construct a wavelet matrix ontop of the adjacency list.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use RustPraxisProjekt2024::wavegraph::GraphModel;
+    /// use sucds::bit_vectors::{Rank9Sel, BitVector};
+    ///
+    /// let mut graph: GraphModel<String, f64, f64, petgraph::prelude::Directed> =
+    ///            GraphModel::new_directed();
+    /// let _v1 = graph.add_node("v1".to_string(), 1.0);
+    /// let _v3 = graph.add_node("v3".to_string(), 1.0);
+    /// let _v2 = graph.add_node("v2".to_string(), 1.5);
+    ///
+    /// // Edges:
+    /// // _v1 -> _v2
+    /// let _e1 = graph.add_edge(_v1, _v2, "e1".to_string(), 1.0);
+    /// // _v1 -> _v3
+    /// let _e2 = graph.add_edge(_v1, _v3, "e2".to_string(), 1.0);
+    /// // _v3 -> _v1
+    /// let _e3 = graph.add_edge(_v3, _v1, "e3".to_string(), 1.0);
+    /// // _v3 -> _v2
+    /// let _e4 = graph.add_edge(_v3, _v2, "e4".to_string(), 1.0);
+    ///
+    /// let bitmap = graph.to_bitmap(graph.to_adjacency_list());
+    /// assert!(*bitmap.bit_vector() == BitVector::from_bits(vec![
+    ///     true, false, false, true, false, false, true]
+    /// ));
+    /// ```
     pub fn to_bitmap(&self, adjacency_list: Vec<(L, Vec<L>)>) -> Rank9Sel {
         let mut bit_map = Vec::with_capacity(self.graph.node_count() + self.graph.edge_count());
         for (_v, vs) in adjacency_list {
@@ -209,17 +408,6 @@ where
     /// Returns whether the graph is directed or not.
     pub fn is_directed(&self) -> bool {
         self.graph.is_directed()
-    }
-
-    //TODO: Implement the other functionalities like from_edges
-    fn into_wavemodel(self) -> WaveModel<L, N, E> {
-        //Returns a QWT either 256 or 512 with both the nodes and edges data_tables for data lookup
-
-        //A node consist of two things a label and the index for the data.
-        //The same is true for an edge.
-        //Question how do we encode this into a graph?
-        // Implementation lies in WaveModel::from
-        todo!()
     }
 
     /// Provides the option to update both the label and weight on some node.
@@ -238,7 +426,7 @@ where
         &mut self,
         idx: NodeIndex<Ix>,
         new_label: L,
-        new_weight: N
+        new_weight: N,
     ) -> Result<NodeIndex<Ix>, GraphModelError> {
         if let Ok(_) = self.update_node_label(idx, new_label) {
             if let Ok(res) = self.update_node_weight(idx, new_weight) {
@@ -322,7 +510,7 @@ where
         &mut self,
         idx: EdgeIndex<Ix>,
         new_label: L,
-        new_weight: E
+        new_weight: E,
     ) -> Result<EdgeIndex<Ix>, GraphModelError> {
         if let Ok(_) = self.update_edge_label(idx, new_label) {
             if let Ok(res) = self.update_edge_weight(idx, new_weight) {
@@ -545,9 +733,9 @@ where
 mod test {
     use crate::wavegraph::GraphModel;
     use crate::wavegraph::WaveModel;
-    use std::collections::HashMap;
     use petgraph::visit::IntoEdges;
     use petgraph::visit::IntoNodeIdentifiers;
+    use std::collections::HashMap;
     use sucds::bit_vectors::Rank9Sel;
 
     fn create_directed_test_graph() -> GraphModel<String, f64, f64, petgraph::prelude::Directed> {
@@ -927,13 +1115,15 @@ mod test {
         edge_iter.next();
         let _ = graph.update_edge_label(edge_iter.next().unwrap(), "e9".to_string());
         let (found, _): (Vec<_>, Vec<_>) = graph.data_table_edges.into_iter().unzip();
-        let expected = vec!["e8".to_string(),
-                                        "e2".to_string(),
-                                        "e3".to_string(),
-                                        "e9".to_string(),
-                                        "e5".to_string(),
-                                        "e6".to_string(),
-                                        "e7".to_string()];
+        let expected = vec![
+            "e8".to_string(),
+            "e2".to_string(),
+            "e3".to_string(),
+            "e9".to_string(),
+            "e5".to_string(),
+            "e6".to_string(),
+            "e7".to_string(),
+        ];
 
         assert!(
             found == expected,
@@ -973,7 +1163,7 @@ mod test {
         edge_iter.next();
         let _ = graph.update_edge_weight(edge_iter.next().unwrap(), 3.0);
         let (_, found): (Vec<_>, Vec<_>) = graph.data_table_edges.into_iter().unzip();
-        let expected = vec![2.0, 1.0, 1.0, 3.0, 1.0, 1.0, 1.0,];
+        let expected = vec![2.0, 1.0, 1.0, 3.0, 1.0, 1.0, 1.0];
         assert!(
             found == expected,
             "Edge weights not as expected!\nExpected: {0:?}\nFound: {1:?}",
