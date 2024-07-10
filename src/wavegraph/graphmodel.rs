@@ -238,7 +238,7 @@ where
         &mut self,
         idx: NodeIndex<Ix>,
         new_label: L,
-        new_weight: N
+        new_weight: N,
     ) -> Result<NodeIndex<Ix>, GraphModelError> {
         if let Ok(_) = self.update_node_label(idx, new_label) {
             if let Ok(res) = self.update_node_weight(idx, new_weight) {
@@ -322,7 +322,7 @@ where
         &mut self,
         idx: EdgeIndex<Ix>,
         new_label: L,
-        new_weight: E
+        new_weight: E,
     ) -> Result<EdgeIndex<Ix>, GraphModelError> {
         if let Ok(_) = self.update_edge_label(idx, new_label) {
             if let Ok(res) = self.update_edge_weight(idx, new_weight) {
@@ -388,6 +388,185 @@ where
         }
         // Otherwhise return NodeNotFound error!
         return Err(GraphModelError::NodeNotFound);
+    }
+
+    fn parse_graph(filename: &str, weighted: bool) -> (usize, usize, (Vec<(i32, i32)>, Vec<f64>)) {
+        let lines_as_vec = read_lines(filename);
+        let number_of_nodes = lines_as_vec[0].parse::<usize>().unwrap();
+        let number_of_edges = lines_as_vec[1].parse::<usize>().unwrap();
+        let temp_edges_vec = &lines_as_vec[2..];
+        if weighted {
+            (
+                number_of_nodes,
+                number_of_edges,
+                parse_weighted(temp_edges_vec, number_of_edges),
+            )
+        } else {
+            (
+                number_of_nodes,
+                number_of_edges,
+                parse_non_weighted(temp_edges_vec, number_of_edges),
+            )
+        }
+    }
+
+    fn parse_weighted(
+        temp_edges_vec: &[String],
+        number_of_edges: usize,
+    ) -> (Vec<(i32, i32)>, Vec<f64>) {
+        let mut edges: Vec<(i32, i32)> = Vec::new();
+        let mut weights: Vec<f64> = Vec::new();
+        for i in 0..number_of_edges {
+            let line_iter = temp_edges_vec[i].split(" ");
+            let line = line_iter.collect::<Vec<&str>>();
+
+            edges.push((
+                line[0].parse::<i32>().unwrap(),
+                line[1].parse::<i32>().unwrap(),
+            ));
+            weights.push(line[2].parse::<f64>().unwrap());
+        }
+        (edges, weights)
+    }
+
+    fn parse_non_weighted(
+        temp_edges_vec: &[String],
+        number_of_edges: usize,
+    ) -> (Vec<(i32, i32)>, Vec<f64>) {
+        let mut edges: Vec<(i32, i32)> = Vec::new();
+        let weights = vec![1.0; number_of_edges];
+        for i in 0..number_of_edges {
+            let line_iter = temp_edges_vec[i].split(" ");
+            let line = line_iter.collect::<Vec<&str>>();
+
+            edges.push((
+                line[0].parse::<i32>().unwrap(),
+                line[1].parse::<i32>().unwrap(),
+            ));
+        }
+        (edges, weights)
+    }
+
+    fn read_lines(filename: &str) -> Vec<String> {
+        read_to_string(filename)
+            .unwrap()
+            .lines()
+            .map(String::from)
+            .collect()
+    }
+
+    fn create_directed_benchmark_graph(
+        file_name: &str,
+        has_weighted_edges: bool,
+    ) -> GraphModel<i32, f64, f64, petgraph::Directed> {
+        match has_weighted_edges {
+            true => create_directed_weighted_benchmark_graph(file_name),
+            false => create_directed_unweighted_benchmark_graph(file_name),
+        }
+    }
+
+    fn create_undirected_benchmark_graph(
+        file_name: &str,
+        has_weighted_edges: bool,
+    ) -> GraphModel<i32, f64, f64, petgraph::Undirected> {
+        match has_weighted_edges {
+            true => create_undirected_weighted_benchmark_graph(file_name),
+            false => create_undirected_unweighted_benchmark_graph(file_name),
+        }
+    }
+
+    fn create_directed_weighted_benchmark_graph(
+        file_name: &str,
+    ) -> GraphModel<i32, f64, f64, petgraph::prelude::Directed> {
+        let mut graph: GraphModel<i32, f64, f64, petgraph::prelude::Directed> =
+            GraphModel::new_directed();
+        let parsed_file = parse_graph(filename, true);
+        // creates Nodes from 0 to number_of_nodes, which is the first line of the
+        // passed file
+        for i in 0..parsed_file.0 {
+            graph.add_node(i, 1.0);
+        }
+        // creates Edges from 0 to number_of_edges, which is the second line of the
+        // passed file
+        for i in 0..parsed_file.1 {
+            graph.add_edge(
+                parsed_file.2 .0[i].0,
+                parsed_file.2 .0[i].1,
+                i,
+                parsed_file.2 .1[i],
+            );
+        }
+        graph.clone()
+    }
+
+    fn create_undirected_weighted_benchmark_graph(
+        file_name: &str,
+    ) -> GraphModel<i32, f64, f64, petgraph::prelude::Undirected> {
+        let mut graph: GraphModel<i32, f64, f64, petgraph::prelude::Undirected> =
+            GraphModel::new_undirected();
+        let parsed_file = parse_graph(filename, true);
+        // creates Nodes from 0 to number_of_nodes, which is the first line of the
+        // passed file
+        for i in 0..parsed_file.0 {
+            graph.add_node(i, 1.0);
+        }
+        // creates Edges from 0 to number_of_edges, which is the second line of the passed
+        // file
+        for i in 0..parsed_file.1 {
+            graph.add_edge(
+                parsed_file.2 .0[i].0,
+                parsed_file.2 .0[i].1,
+                i,
+                parsed_file.2 .1[i],
+            );
+        }
+        graph.clone()
+    }
+
+    // unweighted being all edges weights are set to 1.0
+    fn create_directed_unweighted_benchmark_graph(
+        file_name: &str,
+    ) -> GraphModel<i32, f64, f64, petgraph::prelude::Directed> {
+        let mut graph: GraphModel<i32, f64, f64, petgraph::prelude::Directed> =
+            GraphModel::new_directed();
+        let parsed_file = parse_graph(filename, false);
+        // creates Nodes from 0 to number_of_nodes, which is the first line fo the passed file
+        for i in 0..parsed_file.0 {
+            graph.add_node(i, 1.0);
+        }
+        // creates Edges from 0 to number_of_edges, which is the second line of the passed file
+        for i in 0..parsed_file.1 {
+            graph.add_edge(
+                parsed_file.2 .0[i].0,
+                parsed_file.2 .0[i].1,
+                i,
+                parsed_file.2 .1[i],
+            );
+        }
+        graph.clone()
+    }
+
+    // unweighted being all edge weights are set to 1.0
+    fn create_undirected_unweighted_benchmark_graph(
+        file_name: &str,
+    ) -> GraphModel<i32, f64, f64, petgraph::prelude::Undirected> {
+        let mut graph: GraphModel<i32, f64, f64, petgraph::prelude::Undirected> =
+            GraphModel::new_undirected();
+        let parsed_file = parse_graph(filename, false);
+        // creates Nodes from 0 to number_of_nodes, which is the first line of the passed file
+        for i in 0..parsed_file.0 {
+            graph.add_node(i, 1.0);
+        }
+        // creates Edges from 0 to number_of_edges, which is the seconds line of the passed file
+        for i in 0..parsed_file.1 {
+            graph.add_edge(
+                parsed_file.2 .0[i].0,
+                parsed_file.2 .0[i].1,
+                i,
+                parsed_file.2 .1[i],
+            );
+        }
+        graph.clone()
     }
 }
 
@@ -545,9 +724,9 @@ where
 mod test {
     use crate::wavegraph::GraphModel;
     use crate::wavegraph::WaveModel;
-    use std::collections::HashMap;
     use petgraph::visit::IntoEdges;
     use petgraph::visit::IntoNodeIdentifiers;
+    use std::collections::HashMap;
     use sucds::bit_vectors::Rank9Sel;
 
     fn create_directed_test_graph() -> GraphModel<String, f64, f64, petgraph::prelude::Directed> {
@@ -927,13 +1106,15 @@ mod test {
         edge_iter.next();
         let _ = graph.update_edge_label(edge_iter.next().unwrap(), "e9".to_string());
         let (found, _): (Vec<_>, Vec<_>) = graph.data_table_edges.into_iter().unzip();
-        let expected = vec!["e8".to_string(),
-                                        "e2".to_string(),
-                                        "e3".to_string(),
-                                        "e9".to_string(),
-                                        "e5".to_string(),
-                                        "e6".to_string(),
-                                        "e7".to_string()];
+        let expected = vec![
+            "e8".to_string(),
+            "e2".to_string(),
+            "e3".to_string(),
+            "e9".to_string(),
+            "e5".to_string(),
+            "e6".to_string(),
+            "e7".to_string(),
+        ];
 
         assert!(
             found == expected,
@@ -973,7 +1154,7 @@ mod test {
         edge_iter.next();
         let _ = graph.update_edge_weight(edge_iter.next().unwrap(), 3.0);
         let (_, found): (Vec<_>, Vec<_>) = graph.data_table_edges.into_iter().unzip();
-        let expected = vec![2.0, 1.0, 1.0, 3.0, 1.0, 1.0, 1.0,];
+        let expected = vec![2.0, 1.0, 1.0, 3.0, 1.0, 1.0, 1.0];
         assert!(
             found == expected,
             "Edge weights not as expected!\nExpected: {0:?}\nFound: {1:?}",
