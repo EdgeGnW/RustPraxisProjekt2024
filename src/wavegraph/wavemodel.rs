@@ -475,6 +475,90 @@ where
         return Ok(idxs);
     }
 
+    /// Returns the indices of all incoming edges that are connected to the passed node.
+    /// Returns an error, if the passed index does not belong to any existing node.
+    pub fn node_incoming_edges(&self, idx: &usize) -> Result<Vec<L>, WaveModelError> {
+        if let None = self.data_table_edges.get(*idx) {
+            return Err(WaveModelError::NodeDoesNotExist);
+        }
+
+        let node = self.node_label(idx).unwrap();
+        // Sadly we need to linearly traverse the edge_map to find every occurence of the passed
+        // node
+        let edge_map_iter = self
+            .edge_map
+            .iter()
+            .filter(|((_, node_right), _)| *node_right == *node);
+
+        let mut idxs: Vec<L> = Vec::new();
+
+        for (_, vals) in edge_map_iter {
+            idxs.append(
+                &mut vals
+                    .clone()
+                    .iter()
+                    .map(|index| self.edge_label(index).unwrap().clone())
+                    .collect(),
+            );
+        }
+
+        return Ok(idxs);
+    }
+
+    /// Returns the indices of all outgoing edges that are connected to the passed node.
+    /// Returns an error, if the passed index does not belong to any existing node.
+    pub fn node_outgoing_edges(&self, idx: &usize) -> Result<Vec<L>, WaveModelError> {
+        if let None = self.data_table_edges.get(*idx) {
+            return Err(WaveModelError::NodeDoesNotExist);
+        }
+
+        let node = self.node_label(idx).unwrap();
+        // Sadly we need to linearly traverse the edge_map to find every occurence of the passed
+        // node
+        let edge_map_iter = self
+            .edge_map
+            .iter()
+            .filter(|((node_left, _), _)| *node_left == *node);
+
+        let mut idxs: Vec<L> = Vec::new();
+
+        for (_, vals) in edge_map_iter {
+            idxs.append(
+                &mut vals
+                    .clone()
+                    .iter()
+                    .map(|index| self.edge_label(index).unwrap().clone())
+                    .collect(),
+            );
+        }
+
+        return Ok(idxs);
+    }
+
+
+
+    pub fn node_neighbours(&self, idx: &usize) -> Result<Vec<L>, WaveModelError> {
+        if let None = self.data_table_edges.get(*idx) {
+            return Err(WaveModelError::NodeDoesNotExist);
+        }
+
+        let node = self.node_label(idx).unwrap();
+        // Sadly we need to linearly traverse the edge_map to find every occurence of the passed
+        // node
+        let edge_map_iter = self
+            .edge_map
+            .iter()
+            .filter(|((node_left, _), _)| *node_left == *node);
+
+            let mut idxs: Vec<L> = Vec::with_capacity(edge_map_iter.clone().count());
+
+            for ((_, label), _) in edge_map_iter {
+                idxs.push(label.clone());
+            }
+    
+            return Ok(idxs);
+    }
+
     /// Reconstruct the wavelet-matrix, sequence and bitmap to represent the previously added
     /// modifications to the model. Only proceeds with the reconstruction, if the modified bit is
     /// set.
@@ -888,6 +972,70 @@ mod test {
             "Adjacency list was not as expected!\nExpected: {0:?}\nFound: {1:?}",
             expected,
             found
+        );
+    }
+
+    #[test]
+    fn check_node_edges() {
+        let model = create_directed_test_model();
+
+        let node_edges_found = model.node_edges(&(0 as usize)).unwrap();
+        let node_edges_expected = vec!["e1".to_string(), "e2".to_string(), "e3".to_string(), "e4".to_string()];
+        assert!(
+            //check if 2 vectors have the same elements in any order
+            node_edges_expected.iter().all(|item| node_edges_found.contains(item))
+                && node_edges_found.iter().all(|item| node_edges_expected.contains(item)), 
+            "node edges are not as expected!\nExpected: {0:?}\nFound: {1:?}",
+            node_edges_expected,
+            node_edges_found
+        );
+    }
+
+    #[test]
+    fn check_node_incoming_edges() {
+        let model = create_directed_test_model();
+
+        let node_edges_found = model.node_incoming_edges(&(0 as usize)).unwrap();
+        let node_edges_expected = vec!["e3".to_string(), "e4".to_string()];
+        assert!(
+            //check if 2 vectors have the same elements in any order
+            node_edges_expected.iter().all(|item| node_edges_found.contains(item))
+                && node_edges_found.iter().all(|item| node_edges_expected.contains(item)), 
+            "node edges are not as expected!\nExpected: {0:?}\nFound: {1:?}",
+            node_edges_expected,
+            node_edges_found
+        );
+    }
+
+    #[test]
+    fn check_node_outgoing_edges() {
+        let model = create_directed_test_model();
+
+        let node_edges_found = model.node_outgoing_edges(&(0 as usize)).unwrap();
+        let node_edges_expected = vec!["e1".to_string(), "e2".to_string()];
+        assert!(
+            //check if 2 vectors have the same elements in any order
+            node_edges_expected.iter().all(|item| node_edges_found.contains(item))
+                && node_edges_found.iter().all(|item| node_edges_expected.contains(item)), 
+            "node edges are not as expected!\nExpected: {0:?}\nFound: {1:?}",
+            node_edges_expected,
+            node_edges_found
+        );
+    }
+
+    #[test]
+    fn check_node_neighbours() {
+        let model = create_directed_test_model();
+
+        let node_neighbours_found = model.node_neighbours(&(0 as usize)).unwrap();
+        let node_neighbours_expected = vec!["v2".to_string(), "v3".to_string()];
+        assert!(
+            //check if 2 vectors have the same elements in any order
+            node_neighbours_expected.iter().all(|item| node_neighbours_found.contains(item))
+                && node_neighbours_found.iter().all(|item| node_neighbours_expected.contains(item)), 
+            "node neighbours are not as expected!\nExpected: {0:?}\nFound: {1:?}",
+            node_neighbours_expected,
+            node_neighbours_found
         );
     }
 
