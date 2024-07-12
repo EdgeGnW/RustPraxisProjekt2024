@@ -102,46 +102,43 @@ impl<L, N, E> WaveModel<L, N, E>
 where
     L: Clone + Ord + Hash,
 {
-    pub fn new() -> Self {
-        todo!()
-    }
-
+    /// Returns the wavelet-matrix from inside of this structure.
     pub fn wavelet_matrix(&self) -> &QWT {
         &self.wavelet_matrix
     }
 
+    /// Returns the sequence from inside of this structure.
     pub fn sequence(&self) -> &Vec<L> {
         &self.sequence
     }
 
+    /// Returns the bitmap from inside of this structure.
     pub fn bitmap(&self) -> &Rank9Sel {
         &self.bitmap
     }
 
+    /// Returns the edge-map from inside of this structure.
     pub fn to_edge_map(&self) -> HashMap<(L, L), Vec<usize>> {
         self.edge_map.clone()
     }
 
-    //pub fn take_data_table_nodes(&mut self) -> Vec<N> {
-    //    mem::take(&mut self.data_table_nodes)
-    //}
-
-    //pub fn take_data_table_edges(&mut self) -> Vec<E> {
-    //    mem::take(&mut self.data_table_edges)
-    //}
-
+    /// Turns the structure into two data-tables describing the mapping between labels and weights
+    /// of nodes and edges.
     pub fn into_data_tables(self) -> (Vec<(L, N)>, Vec<(L, E)>) {
         (self.data_table_nodes, self.data_table_edges)
     }
 
+    /// Returns the flag of whether the structure represents a directed graph or not.
     pub fn is_directed(&self) -> bool {
         self.is_directed
     }
 
+    /// Returns the flag of whether the strucutre has been modified or not.
     pub fn is_modified(&self) -> bool {
         self.is_modified
     }
 
+    /// Returns the adjacency-list belonging to the represented graph.
     pub fn to_adjacency_list(&self) -> Vec<(L, Vec<L>)> {
         let mut adjacency_list: Vec<(L, Vec<L>)> = Vec::new();
         let mut sequence_iterator = self.sequence().iter();
@@ -479,8 +476,13 @@ where
     }
 
     /// Reconstruct the wavelet-matrix, sequence and bitmap to represent the previously added
-    /// modifications to the model.
+    /// modifications to the model. Only proceeds with the reconstruction, if the modified bit is
+    /// set.
     fn reconstruct_qwt(&mut self) {
+        if !self.is_modified {
+            return;
+        }
+
         // Sequence & bitmap
         let mut sequence: Vec<L> = Vec::new();
         let mut bitvec: BitVector = BitVector::new();
@@ -533,6 +535,9 @@ where
         self.wavelet_matrix = QWT::QWT256(qwt::QWT256::from(sequence_indices));
     }
 
+    /// Executes the bitvector-rank-function onto the underlying wavelet-matrix.
+    /// This will force a reconstruction of the underlying wavelet-matrix, if the structure has
+    /// been modified.
     pub fn rank(&mut self, label: L, n: usize) -> Option<usize> {
         self.reconstruct_qwt();
 
@@ -547,6 +552,9 @@ where
         }
     }
 
+    /// Executes the bitvector-access-function onto the underlying wavelet-matrix.
+    /// This will force a reconstruction of the underlying wavelet-matrix, if the structure has
+    /// been modified.
     pub fn access(&mut self, n: usize) -> Option<&(L, N)> {
         self.reconstruct_qwt();
 
@@ -570,6 +578,9 @@ where
         }
     }
 
+    /// Executes the bitvector-select-function onto the underlying wavelet-matrix.
+    /// This will force a reconstruction of the underlying wavelet-matrix, if the structure has
+    /// been modified.
     pub fn select(&mut self, label: L, n: usize) -> Option<usize> {
         self.reconstruct_qwt();
 

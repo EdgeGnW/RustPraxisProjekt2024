@@ -420,7 +420,14 @@ where
     ///
     /// # Examples
     /// ```
-    /// // TODO: Give example here
+    /// use RustPraxisProjekt2024::wavegraph::GraphModel;
+    ///
+    /// let mut graph: GraphModel<String, f64, f64, petgraph::prelude::Directed> =
+    ///            GraphModel::new_directed();
+    /// let _v1 = graph.add_node("v1".to_string(), 1.0);
+    /// let _ = graph.update_node(_v1, "w1".to_string(), 2.5).unwrap();
+    ///
+    /// assert!(*graph.node_label(_v1).unwrap() == "w1".to_string());
     /// ```
     pub fn update_node(
         &mut self,
@@ -447,7 +454,14 @@ where
     ///
     /// # Examples
     /// ```
-    /// // TODO: Give example here
+    /// use RustPraxisProjekt2024::wavegraph::GraphModel;
+    ///
+    /// let mut graph: GraphModel<String, f64, f64, petgraph::prelude::Directed> =
+    ///            GraphModel::new_directed();
+    /// let _v1 = graph.add_node("v1".to_string(), 1.0);
+    /// let _ = graph.update_node_label(_v1, "w1".to_string()).unwrap();
+    ///
+    /// assert!(*graph.node_label(_v1).unwrap() == "w1".to_string());
     /// ```
     pub fn update_node_label(
         &mut self,
@@ -504,7 +518,16 @@ where
     ///
     /// # Examples
     /// ```
-    /// // TODO: Give example here
+    /// use RustPraxisProjekt2024::wavegraph::GraphModel;
+    ///
+    /// let mut graph: GraphModel<String, f64, f64, petgraph::prelude::Directed> =
+    ///            GraphModel::new_directed();
+    /// let _v1 = graph.add_node("v1".to_string(), 1.0);
+    /// let _v2 = graph.add_node("v2".to_string(), 1.0);
+    /// let _e1 = graph.add_edge(_v1, _v2, "e1".to_string(), 1.0);
+    /// let _ = graph.update_edge(_e1, "w1".to_string(), 2.5).unwrap();
+    ///
+    /// assert!(*graph.edge_label(_e1).unwrap() == "w1".to_string());
     /// ```
     pub fn update_edge(
         &mut self,
@@ -531,7 +554,16 @@ where
     ///
     /// # Examples
     /// ```
-    /// // TODO: Give example here
+    /// use RustPraxisProjekt2024::wavegraph::GraphModel;
+    ///
+    /// let mut graph: GraphModel<String, f64, f64, petgraph::prelude::Directed> =
+    ///            GraphModel::new_directed();
+    /// let _v1 = graph.add_node("v1".to_string(), 1.0);
+    /// let _v2 = graph.add_node("v2".to_string(), 1.0);
+    /// let _e1 = graph.add_edge(_v1, _v2, "e1".to_string(), 1.0);
+    /// let _ = graph.update_edge(_e1, "w1".to_string(), 2.5).unwrap();
+    ///
+    /// assert!(*graph.edge_label(_e1).unwrap() == "w1".to_string());
     /// ```
     pub fn update_edge_label(
         &mut self,
