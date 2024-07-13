@@ -1,3 +1,4 @@
+pub mod bench;
 pub mod wavegraph;
 #[cfg(test)]
 mod test {

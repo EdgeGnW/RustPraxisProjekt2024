@@ -539,8 +539,6 @@ where
         return Ok(idxs);
     }
 
-
-
     pub fn node_neighbours(&self, idx: &usize) -> Result<Vec<L>, WaveModelError> {
         if let None = self.data_table_edges.get(*idx) {
             return Err(WaveModelError::NodeDoesNotExist);
@@ -554,13 +552,13 @@ where
             .iter()
             .filter(|((node_left, _), _)| *node_left == *node);
 
-            let mut idxs: Vec<L> = Vec::with_capacity(edge_map_iter.clone().count());
+        let mut idxs: Vec<L> = Vec::with_capacity(edge_map_iter.clone().count());
 
-            for ((_, label), _) in edge_map_iter {
-                idxs.push(label.clone());
-            }
-    
-            return Ok(idxs);
+        for ((_, label), _) in edge_map_iter {
+            idxs.push(label.clone());
+        }
+
+        return Ok(idxs);
     }
 
     /// Reconstruct the wavelet-matrix, sequence and bitmap to represent the previously added
@@ -984,11 +982,20 @@ mod test {
         let model = create_directed_test_model();
 
         let node_edges_found = model.node_edges(&(0 as usize)).unwrap();
-        let node_edges_expected = vec!["e1".to_string(), "e2".to_string(), "e3".to_string(), "e4".to_string()];
+        let node_edges_expected = vec![
+            "e1".to_string(),
+            "e2".to_string(),
+            "e3".to_string(),
+            "e4".to_string(),
+        ];
         assert!(
             //check if 2 vectors have the same elements in any order
-            node_edges_expected.iter().all(|item| node_edges_found.contains(item))
-                && node_edges_found.iter().all(|item| node_edges_expected.contains(item)), 
+            node_edges_expected
+                .iter()
+                .all(|item| node_edges_found.contains(item))
+                && node_edges_found
+                    .iter()
+                    .all(|item| node_edges_expected.contains(item)),
             "node edges are not as expected!\nExpected: {0:?}\nFound: {1:?}",
             node_edges_expected,
             node_edges_found
@@ -1003,8 +1010,12 @@ mod test {
         let node_edges_expected = vec!["e3".to_string(), "e4".to_string()];
         assert!(
             //check if 2 vectors have the same elements in any order
-            node_edges_expected.iter().all(|item| node_edges_found.contains(item))
-                && node_edges_found.iter().all(|item| node_edges_expected.contains(item)), 
+            node_edges_expected
+                .iter()
+                .all(|item| node_edges_found.contains(item))
+                && node_edges_found
+                    .iter()
+                    .all(|item| node_edges_expected.contains(item)),
             "node edges are not as expected!\nExpected: {0:?}\nFound: {1:?}",
             node_edges_expected,
             node_edges_found
@@ -1019,8 +1030,12 @@ mod test {
         let node_edges_expected = vec!["e1".to_string(), "e2".to_string()];
         assert!(
             //check if 2 vectors have the same elements in any order
-            node_edges_expected.iter().all(|item| node_edges_found.contains(item))
-                && node_edges_found.iter().all(|item| node_edges_expected.contains(item)), 
+            node_edges_expected
+                .iter()
+                .all(|item| node_edges_found.contains(item))
+                && node_edges_found
+                    .iter()
+                    .all(|item| node_edges_expected.contains(item)),
             "node edges are not as expected!\nExpected: {0:?}\nFound: {1:?}",
             node_edges_expected,
             node_edges_found
@@ -1035,8 +1050,12 @@ mod test {
         let node_neighbours_expected = vec!["v2".to_string(), "v3".to_string()];
         assert!(
             //check if 2 vectors have the same elements in any order
-            node_neighbours_expected.iter().all(|item| node_neighbours_found.contains(item))
-                && node_neighbours_found.iter().all(|item| node_neighbours_expected.contains(item)), 
+            node_neighbours_expected
+                .iter()
+                .all(|item| node_neighbours_found.contains(item))
+                && node_neighbours_found
+                    .iter()
+                    .all(|item| node_neighbours_expected.contains(item)),
             "node neighbours are not as expected!\nExpected: {0:?}\nFound: {1:?}",
             node_neighbours_expected,
             node_neighbours_found
