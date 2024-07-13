@@ -102,6 +102,10 @@ impl<L, N, E> WaveModel<L, N, E>
 where
     L: Clone + Ord + Hash,
 {
+    pub fn new() -> Self {
+        todo!()
+    }
+
     /// Returns the wavelet-matrix from inside of this structure.
     pub fn wavelet_matrix(&self) -> &QWT {
         &self.wavelet_matrix
