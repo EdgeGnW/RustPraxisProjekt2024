@@ -2,10 +2,18 @@
 mod test {
     use crate::wavegraph::GraphModel;
     use crate::wavegraph::WaveModel;
-    use petgraph::graph::{DefaultIx, NodeIndex};
+    use petgraph::graph::{DefaultIx, EdgeIndex, NodeIndex};
     use std::collections::HashMap;
     use std::fs::read_to_string;
+    use std::time::Instant;
     use sucds::bit_vectors::Rank9Sel;
+
+    // Tinydg = "src/bench/input/tinyDG.txt",
+    // Mediumdg = "src/bench/input/mediumDG.txt",
+    // Largedg = "src/bench/input/largeDG.txt",
+    // Tinyewd = "src/bench/input/tinyEWD.txt",
+    // Mediumewd = "src/bench/input/mediumEWD.txt",
+    // Largeewd = "src/bench/input/largeEWD.txt",
 
     fn parse_graph(
         filename: &str,
@@ -38,7 +46,7 @@ mod test {
         let mut weights: Vec<f64> = Vec::new();
         for i in 0..number_of_edges {
             let line_iter = temp_edges_vec[i].split(" ");
-            let line = line_iter.collect::<Vec<&str>>();
+            let line = line_iter.filter(|s| s.len() != 0).collect::<Vec<&str>>();
 
             edges.push((
                 line[0].parse::<usize>().unwrap(),
@@ -57,7 +65,7 @@ mod test {
         let weights = vec![1.0; number_of_edges];
         for i in 0..number_of_edges {
             let line_iter = temp_edges_vec[i].split(" ");
-            let line = line_iter.collect::<Vec<&str>>();
+            let line = line_iter.filter(|s| s.len() != 0).collect::<Vec<&str>>();
 
             edges.push((
                 line[0].parse::<usize>().unwrap(),
@@ -189,53 +197,245 @@ mod test {
         graph.clone()
     }
 
-    #[test]
-    #[ignore]
-    pub fn bench_tinydg_directed_create() {
-        let _ = create_directed_unweighted_benchmark_graph("src/bench/input/tinyDG.txt");
-        assert!(true);
+    fn bench_directed_create(filename: &str) {
+        let graph = create_directed_unweighted_benchmark_graph(filename);
+        let now = Instant::now();
+        if let Ok(_) = WaveModel::try_from(graph) {
+            println!("Directed_create: {:.3?}", now.elapsed());
+            assert!(true);
+        } else {
+            assert!(false);
+        }
+    }
+
+    fn bench_undirected_create(filename: &str) {
+        let graph = create_undirected_unweighted_benchmark_graph(filename);
+        let now = Instant::now();
+        if let Ok(_) = WaveModel::try_from(graph) {
+            println!("Undirected_create: {:.3?}", now.elapsed());
+            assert!(true);
+        } else {
+            assert!(false);
+        }
+    }
+
+    fn bench_directed_create_add_node(filename: &str) {
+        let graph = create_directed_unweighted_benchmark_graph(filename);
+        if let Ok(mut model) = WaveModel::try_from(graph) {
+            let now = Instant::now();
+            model.add_node(usize::MAX, 1.0);
+            println!("Directed_add_node: {:.3?}", now.elapsed());
+            assert!(true);
+        } else {
+            assert!(false);
+        }
+    }
+
+    fn bench_directed_create_add_edge(filename: &str) {
+        let graph = create_directed_unweighted_benchmark_graph(filename);
+        if let Ok(mut model) = WaveModel::try_from(graph) {
+            let v1 = model.add_node(usize::MAX, 1.0);
+            let v2 = model.add_node(usize::MAX - 1, 1.0);
+            let now = Instant::now();
+            let _ = model.add_edge(usize::MAX, 1.0, v1, v2);
+            println!("Directed_add_edge: {:.3?}", now.elapsed());
+            assert!(true);
+        } else {
+            assert!(false);
+        }
+    }
+
+    fn bench_undirected_create_add_node(filename: &str) {
+        let graph = create_undirected_unweighted_benchmark_graph(filename);
+        if let Ok(mut model) = WaveModel::try_from(graph) {
+            let now = Instant::now();
+            model.add_node(usize::MAX, 1.0);
+            println!("Undirected_add_node: {:.3?}", now.elapsed());
+            assert!(true);
+        } else {
+            assert!(false);
+        }
+    }
+
+    fn bench_undirected_create_add_edge(filename: &str) {
+        let graph = create_undirected_unweighted_benchmark_graph(filename);
+        if let Ok(mut model) = WaveModel::try_from(graph) {
+            let v1 = model.add_node(usize::MAX, 1.0);
+            let v2 = model.add_node(usize::MAX - 1, 1.0);
+            let now = Instant::now();
+            let _ = model.add_edge(usize::MAX, 1.0, v1, v2);
+            println!("Undirected_add_edge: {:.3?}", now.elapsed());
+            assert!(true);
+        } else {
+            assert!(false);
+        }
+    }
+
+    fn bench_directed_create_remove_node(filename: &str, iterations: u8) {
+        let graph = create_directed_unweighted_benchmark_graph(filename);
+        if let Ok(mut model) = WaveModel::try_from(graph) {
+            let now = Instant::now();
+            for _ in 0..iterations {
+                let _ = model.remove_node(&(0));
+            }
+            println!(
+                "Directed_remove_node_{:?}: {:.3?}",
+                iterations,
+                now.elapsed()
+            );
+            assert!(true);
+        } else {
+            assert!(false);
+        }
+    }
+
+    fn bench_directed_create_remove_edge(filename: &str, iterations: u8) {
+        let graph = create_directed_unweighted_benchmark_graph(filename);
+        if let Ok(mut model) = WaveModel::try_from(graph) {
+            let now = Instant::now();
+            for _ in 0..iterations {
+                let _ = model.remove_edge(&(0));
+            }
+            println!(
+                "Directed_remove_edge_{:?}: {:.3?}",
+                iterations,
+                now.elapsed()
+            );
+            assert!(true);
+        } else {
+            assert!(false);
+        }
+    }
+
+    fn bench_undirected_create_remove_node(filename: &str, iterations: u8) {
+        let graph = create_undirected_unweighted_benchmark_graph(filename);
+        if let Ok(mut model) = WaveModel::try_from(graph) {
+            let now = Instant::now();
+            for _ in 0..iterations {
+                let _ = model.remove_node(&(0));
+            }
+            println!(
+                "Undirected_remove_node_{:?}: {:.3?}",
+                iterations,
+                now.elapsed()
+            );
+            assert!(true);
+        } else {
+            assert!(false);
+        }
+    }
+
+    fn bench_undirected_create_remove_edge(filename: &str, iterations: u8) {
+        let graph = create_undirected_unweighted_benchmark_graph(filename);
+        if let Ok(mut model) = WaveModel::try_from(graph) {
+            let now = Instant::now();
+            for _ in 0..iterations {
+                let _ = model.remove_edge(&(0));
+            }
+            println!(
+                "Undirected_remove_edge_{:?}: {:.3?}",
+                iterations,
+                now.elapsed()
+            );
+            assert!(true);
+        } else {
+            assert!(false);
+        }
     }
 
     #[test]
     #[ignore]
-    pub fn bench_tinydg_undirected_create() {
-        let _ = create_undirected_unweighted_benchmark_graph("src/bench/input/tinyDG.txt");
-        assert!(true);
+    pub fn exec_bench() {
+        // // TinyDG
+        // bench_directed_create("src/bench/input/tinyDG.txt");
+        // bench_directed_create_add_node("src/bench/input/tinyDG.txt");
+        // bench_directed_create_add_edge("src/bench/input/tinyDG.txt");
+        // bench_directed_create_remove_edge("src/bench/input/tinyDG.txt", 1 as u8);
+        // bench_directed_create_remove_node("src/bench/input/tinyDG.txt", 1 as u8);
+
+        // bench_undirected_create("src/bench/input/tinyDG.txt");
+        // bench_undirected_create_add_node("src/bench/input/tinyDG.txt");
+        // bench_undirected_create_add_edge("src/bench/input/tinyDG.txt");
+        // bench_undirected_create_remove_edge("src/bench/input/tinyDG.txt", 1 as u8);
+        // bench_undirected_create_remove_node("src/bench/input/tinyDG.txt", 1 as u8);
+
+        // // MediumDG
+        // bench_directed_create("src/bench/input/mediumDG.txt");
+        // bench_directed_create_add_node("src/bench/input/mediumDG.txt");
+        // bench_directed_create_add_edge("src/bench/input/mediumDG.txt");
+        // bench_directed_create_remove_edge("src/bench/input/mediumDG.txt", 1 as u8);
+        // bench_directed_create_remove_node("src/bench/input/mediumDG.txt", 1 as u8);
+
+        // bench_undirected_create("src/bench/input/mediumDG.txt");
+        // bench_undirected_create_add_node("src/bench/input/mediumDG.txt");
+        // bench_undirected_create_add_edge("src/bench/input/mediumDG.txt");
+        // bench_undirected_create_remove_edge("src/bench/input/mediumDG.txt", 1 as u8);
+        // bench_undirected_create_remove_node("src/bench/input/mediumDG.txt", 1 as u8);
+
+        // // LargeDG
+        // bench_directed_create("src/bench/input/largeDG.txt");
+        // bench_directed_create_add_node("src/bench/input/largeDG.txt");
+        // bench_directed_create_add_edge("src/bench/input/largeDG.txt");
+        // bench_directed_create_remove_edge("src/bench/input/largeDG.txt", 1 as u8);
+        // bench_directed_create_remove_node("src/bench/input/largeDG.txt", 1 as u8);
+
+        // bench_undirected_create("src/bench/input/largeDG.txt");
+        // bench_undirected_create_add_node("src/bench/input/largeDG.txt");
+        // bench_undirected_create_add_edge("src/bench/input/largeDG.txt");
+        // bench_undirected_create_remove_edge("src/bench/input/largeDG.txt", 1 as u8);
+        // bench_undirected_create_remove_node("src/bench/input/largeDG.txt", 1 as u8);
     }
 
     #[test]
     #[ignore]
-    pub fn bench_tinydg_directed_create_add_node() {
-        let mut graph = create_directed_unweighted_benchmark_graph("src/bench/input/tinyDG.txt");
-        let _ = graph.add_node(usize::MAX, 1.0);
-        assert!(true);
-    }
+    pub fn bench_custom_timing() {
+        // Change if custom timing is wanted
+        if false {
+            assert!(true);
+            return;
+        }
 
-    #[test]
-    #[ignore]
-    pub fn bench_tinydg_directed_create_add_edge() {
-        let mut graph = create_directed_unweighted_benchmark_graph("src/bench/input/tinyDG.txt");
-        let v1 = graph.add_node(usize::MAX, 1.0);
-        let v2 = graph.add_node(usize::MAX - 1, 1.0);
-        graph.add_edge(v1, v2, usize::MAX, 1.0);
-        assert!(true);
-    }
+        // tiny
+        bench_directed_create("src/bench/input/tinyDG.txt");
+        bench_directed_create_add_node("src/bench/input/tinyDG.txt");
+        bench_directed_create_add_edge("src/bench/input/tinyDG.txt");
+        bench_directed_create_remove_edge("src/bench/input/tinyDG.txt", 1 as u8);
+        bench_directed_create_remove_node("src/bench/input/tinyDG.txt", 1 as u8);
 
-    #[test]
-    #[ignore]
-    pub fn bench_tinydg_undirected_create_add_node() {
-        let mut graph = create_undirected_unweighted_benchmark_graph("src/bench/input/tinyDG.txt");
-        let _ = graph.add_node(usize::MAX, 1.0);
-        assert!(true);
-    }
+        bench_undirected_create("src/bench/input/tinyDG.txt");
+        bench_undirected_create_add_node("src/bench/input/tinyDG.txt");
+        bench_undirected_create_add_edge("src/bench/input/tinyDG.txt");
+        bench_undirected_create_remove_edge("src/bench/input/tinyDG.txt", 1 as u8);
+        bench_undirected_create_remove_node("src/bench/input/tinyDG.txt", 1 as u8);
 
-    #[test]
-    #[ignore]
-    pub fn bench_tinydg_undirected_create_add_edge() {
-        let mut graph = create_undirected_unweighted_benchmark_graph("src/bench/input/tinyDG.txt");
-        let v1 = graph.add_node(usize::MAX, 1.0);
-        let v2 = graph.add_node(usize::MAX - 1, 1.0);
-        graph.add_edge(v1, v2, usize::MAX, 1.0);
-        assert!(true);
+        // medium
+        bench_directed_create("src/bench/input/mediumDG.txt");
+        bench_directed_create_add_node("src/bench/input/mediumDG.txt");
+        bench_directed_create_add_edge("src/bench/input/mediumDG.txt");
+        bench_directed_create_remove_edge("src/bench/input/mediumDG.txt", 1 as u8);
+        bench_directed_create_remove_node("src/bench/input/mediumDG.txt", 1 as u8);
+
+        bench_undirected_create("src/bench/input/mediumDG.txt");
+        bench_undirected_create_add_node("src/bench/input/mediumDG.txt");
+        bench_undirected_create_add_edge("src/bench/input/mediumDG.txt");
+        bench_undirected_create_remove_edge("src/bench/input/mediumDG.txt", 1 as u8);
+        bench_undirected_create_remove_node("src/bench/input/mediumDG.txt", 1 as u8);
+
+        // large
+        bench_directed_create("src/bench/input/largeDG.txt");
+        bench_directed_create_add_node("src/bench/input/largeDG.txt");
+        bench_directed_create_add_edge("src/bench/input/largeDG.txt");
+        bench_directed_create_remove_edge("src/bench/input/largeDG.txt", 1 as u8);
+        bench_directed_create_remove_node("src/bench/input/largeDG.txt", 1 as u8);
+        bench_directed_create_remove_edge("src/bench/input/largeDG.txt", 10 as u8);
+        bench_directed_create_remove_edge("src/bench/input/largeDG.txt", 10 as u8);
+
+        bench_undirected_create("src/bench/input/largeDG.txt");
+        bench_undirected_create_add_node("src/bench/input/largeDG.txt");
+        bench_undirected_create_add_edge("src/bench/input/largeDG.txt");
+        bench_undirected_create_remove_edge("src/bench/input/largeDG.txt", 1 as u8);
+        bench_undirected_create_remove_node("src/bench/input/largeDG.txt", 1 as u8);
+        bench_undirected_create_remove_edge("src/bench/input/largeDG.txt", 10 as u8);
+        bench_undirected_create_remove_edge("src/bench/input/largeDG.txt", 10 as u8);
     }
 }
