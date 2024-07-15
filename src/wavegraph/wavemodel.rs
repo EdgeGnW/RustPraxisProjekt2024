@@ -10,7 +10,7 @@ use serde_with;
 use std::cmp::Ordering;
 use std::hash::Hash;
 use std::{collections::HashMap, usize};
-use sucds::bit_vectors::{BitVector, Rank9Sel};
+use sucds::bit_vectors::{BitVector, Rank, Rank9Sel, Select};
 
 use petgraph::{graph::IndexType, EdgeType};
 
@@ -451,114 +451,136 @@ where
     /// Returns the indices of all edges that are connected to the passed node. Explicitly returns
     /// incoming and outgoing edges, so further filtering may be needed.
     /// Returns an error, if the passed index does not belong to any existing node.
-    pub fn node_edges(&self, idx: &usize) -> Result<Vec<L>, WaveModelError> {
+    pub fn node_edges(&mut self, idx: &usize) -> Result<Vec<L>, WaveModelError> {
+        self.reconstruct_qwt();
         if let None = self.data_table_edges.get(*idx) {
             return Err(WaveModelError::NodeDoesNotExist);
         }
+        //find out what section of the bitmap to look at
+        let search_start_index = self.bitmap.select1(*idx).unwrap();
+        let search_end_index = if let Some(x) = self.bitmap.select1(*idx + 1) {
+            x
+        } else {
+            self.bitmap.len()
+        };
 
-        let node = self.node_label(idx).unwrap();
-        // Sadly we need to linearly traverse the edge_map to find every occurence of the passed
-        // node
-        let edge_map_iter = self
-            .edge_map
-            .iter()
-            .filter(|((node_left, node_right), _)| *node_left == *node || *node_right == *node);
+        //amount of edges are the amount of zeros between
+        let edges_amount = search_end_index - search_start_index - 1;
 
-        let mut idxs: Vec<L> = Vec::new();
+        //find where to look in the sequence based on how many edges(zeros) there were before our start index
+        let edges_start_index = self.bitmap.rank0(search_start_index).unwrap();
+        let edges_end_index = edges_start_index + edges_amount;
 
-        for (_, vals) in edge_map_iter {
-            idxs.append(
-                &mut vals
-                    .clone()
-                    .iter()
-                    .map(|index| self.edge_label(index).unwrap().clone())
-                    .collect(),
-            );
-        }
+        //use the indeces to get the edge labels. skip looping edges because they will be counted as incoming edges in the next step.
+        let mut edges: Vec<L> = (edges_start_index..edges_end_index)
+            .filter_map(|n| {
+                if self.index_access(n).unwrap() != *idx {
+                    Some(self.data_table_edges[n].0.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
 
-        return Ok(idxs);
+        //how often does the symbol idx appear in the sequence
+        let incoming_edges_amount = self.index_rank(*idx, self.sequence.len()).unwrap();
+        //get all the instances of idx and clone the corresponing edge label
+        edges.append(
+            &mut (0..incoming_edges_amount)
+                .map(|n| {
+                    self.data_table_edges[self.index_select(*idx, n + 1).unwrap()]
+                        .0
+                        .clone()
+                })
+                .collect(),
+        );
+
+        return Ok(edges);
     }
 
     /// Returns the indices of all incoming edges that are connected to the passed node.
     /// Returns an error, if the passed index does not belong to any existing node.
-    pub fn node_incoming_edges(&self, idx: &usize) -> Result<Vec<L>, WaveModelError> {
+    pub fn node_incoming_edges(&mut self, idx: &usize) -> Result<Vec<L>, WaveModelError> {
+        self.reconstruct_qwt();
         if let None = self.data_table_edges.get(*idx) {
             return Err(WaveModelError::NodeDoesNotExist);
         }
 
-        let node = self.node_label(idx).unwrap();
-        // Sadly we need to linearly traverse the edge_map to find every occurence of the passed
-        // node
-        let edge_map_iter = self
-            .edge_map
-            .iter()
-            .filter(|((_, node_right), _)| *node_right == *node);
-
-        let mut idxs: Vec<L> = Vec::new();
-
-        for (_, vals) in edge_map_iter {
-            idxs.append(
-                &mut vals
+        //how often does the symbol idx appear in the sequence
+        let incoming_edges_amount = self.index_rank(*idx, self.sequence.len()).unwrap();
+        //get all the instances of idx and clone the corresponing edge label
+        let incoming_edges: Vec<L> = (0..incoming_edges_amount)
+            .map(|n| {
+                self.data_table_edges[self.index_select(*idx, n + 1).unwrap()]
+                    .0
                     .clone()
-                    .iter()
-                    .map(|index| self.edge_label(index).unwrap().clone())
-                    .collect(),
-            );
-        }
+            })
+            .collect();
 
-        return Ok(idxs);
+        return Ok(incoming_edges);
     }
 
     /// Returns the indices of all outgoing edges that are connected to the passed node.
     /// Returns an error, if the passed index does not belong to any existing node.
-    pub fn node_outgoing_edges(&self, idx: &usize) -> Result<Vec<L>, WaveModelError> {
+    pub fn node_outgoing_edges(&mut self, idx: &usize) -> Result<Vec<L>, WaveModelError> {
+        self.reconstruct_qwt();
         if let None = self.data_table_edges.get(*idx) {
             return Err(WaveModelError::NodeDoesNotExist);
         }
+        //find out what section of the bitmap to look at
+        let search_start_index = self.bitmap.select1(*idx).unwrap();
+        let search_end_index = if let Some(x) = self.bitmap.select1(*idx + 1) {
+            x
+        } else {
+            self.bitmap.len()
+        };
 
-        let node = self.node_label(idx).unwrap();
-        // Sadly we need to linearly traverse the edge_map to find every occurence of the passed
-        // node
-        let edge_map_iter = self
-            .edge_map
-            .iter()
-            .filter(|((node_left, _), _)| *node_left == *node);
+        //amount of edges are the amount of zeros between
+        let edges_amount = search_end_index - search_start_index - 1;
 
-        let mut idxs: Vec<L> = Vec::new();
+        //find where to look in the sequence based on how many edges(zeros) there were before our start index
+        let edges_start_index = self.bitmap.rank0(search_start_index).unwrap();
+        let edges_end_index = edges_start_index + edges_amount;
 
-        for (_, vals) in edge_map_iter {
-            idxs.append(
-                &mut vals
-                    .clone()
-                    .iter()
-                    .map(|index| self.edge_label(index).unwrap().clone())
-                    .collect(),
-            );
-        }
+        //use the indeces to get the edge labels
+        let outgoing_edges: Vec<L> = (edges_start_index..edges_end_index)
+            .map(|n| self.data_table_edges[n].0.clone())
+            .collect();
 
-        return Ok(idxs);
+        return Ok(outgoing_edges);
     }
 
-    pub fn node_neighbours(&self, idx: &usize) -> Result<Vec<L>, WaveModelError> {
+    pub fn node_neighbours(&mut self, idx: &usize) -> Result<Vec<L>, WaveModelError> {
+        self.reconstruct_qwt();
         if let None = self.data_table_edges.get(*idx) {
             return Err(WaveModelError::NodeDoesNotExist);
         }
 
-        let node = self.node_label(idx).unwrap();
-        // Sadly we need to linearly traverse the edge_map to find every occurence of the passed
-        // node
-        let edge_map_iter = self
-            .edge_map
-            .iter()
-            .filter(|((node_left, _), _)| *node_left == *node);
+        //find out what section of the bitmap to look at
+        let search_start_index = self.bitmap.select1(*idx).unwrap();
+        let search_end_index = if let Some(x) = self.bitmap.select1(*idx + 1) {
+            x
+        } else {
+            self.bitmap.len()
+        };
 
-        let mut idxs: Vec<L> = Vec::with_capacity(edge_map_iter.clone().count());
+        //amount of edges are the amount of zeros between
+        let edges_amount = search_end_index - search_start_index - 1;
 
-        for ((_, label), _) in edge_map_iter {
-            idxs.push(label.clone());
-        }
+        //find where to look in the sequence based on how many edges(zeros) there were before our start index
+        let edges_start_index = self.bitmap.rank0(search_start_index).unwrap();
+        let edges_end_index = edges_start_index + edges_amount;
 
-        return Ok(idxs);
+        //use the indeces to get the edge labels
+        let outgoing_edges: Vec<L> = (edges_start_index..edges_end_index)
+            .map(|n| {
+                self.data_table_nodes[self.index_access(n).unwrap()]
+                    .0
+                    .clone()
+            })
+            .collect();
+
+        return Ok(outgoing_edges);
     }
 
     /// Reconstruct the wavelet-matrix, sequence and bitmap to represent the previously added
@@ -638,6 +660,16 @@ where
         }
     }
 
+    /// Executes the bitvector-rank-function onto the underlying wavelet-matrix.
+    /// This will force a reconstruction of the underlying wavelet-matrix, if the structure has
+    /// been modified.
+    pub fn index_rank(&self, index: usize, n: usize) -> Option<usize> {
+        match self.wavelet_matrix {
+            QWT::QWT256(ref qwt) => qwt.rank(index, n),
+            QWT::QWT512(ref qwt) => qwt.rank(index, n),
+        }
+    }
+
     /// Executes the bitvector-access-function onto the underlying wavelet-matrix.
     /// This will force a reconstruction of the underlying wavelet-matrix, if the structure has
     /// been modified.
@@ -650,7 +682,7 @@ where
                     Some(index) => index,
                     None => return None,
                 };
-
+                //wasteful step if node weight isn't needed. Maybe this should be a seperate functrion call.
                 self.data_table_nodes.get(index)
             }
             QWT::QWT512(ref qwt) => {
@@ -660,6 +692,26 @@ where
                 };
 
                 self.data_table_nodes.get(index)
+            }
+        }
+    }
+
+    /// Executes the bitvector-access-function onto the underlying wavelet-matrix.
+    /// This will force a reconstruction of the underlying wavelet-matrix, if the structure has
+    /// been modified.
+    pub fn index_access(&self, n: usize) -> Option<usize> {
+        match self.wavelet_matrix {
+            QWT::QWT256(ref qwt) => {
+                match qwt.get(n) {
+                    Some(index) => return Some(index),
+                    None => return None,
+                };
+            }
+            QWT::QWT512(ref qwt) => {
+                match qwt.get(n) {
+                    Some(index) => return Some(index),
+                    None => return None,
+                };
             }
         }
     }
@@ -675,6 +727,16 @@ where
             None => return None,
         };
 
+        match self.wavelet_matrix {
+            QWT::QWT256(ref qwt) => qwt.select(index, n),
+            QWT::QWT512(ref qwt) => qwt.select(index, n),
+        }
+    }
+
+    /// Executes the bitvector-select-function onto the underlying wavelet-matrix.
+    /// This will force a reconstruction of the underlying wavelet-matrix, if the structure has
+    /// been modified.
+    pub fn index_select(&self, index: usize, n: usize) -> Option<usize> {
         match self.wavelet_matrix {
             QWT::QWT256(ref qwt) => qwt.select(index, n),
             QWT::QWT512(ref qwt) => qwt.select(index, n),
@@ -773,7 +835,7 @@ mod test {
     use crate::wavegraph::WaveModel;
     use qwt::AccessUnsigned;
     use std::collections::HashMap;
-    use sucds::bit_vectors::{BitVector, Rank9Sel};
+    use sucds::bit_vectors::{BitVector, Rank, Rank9Sel, Select};
 
     fn create_empty_directed_test_model() -> WaveModel<String, usize, usize> {
         let sequence = vec![];
@@ -979,7 +1041,7 @@ mod test {
 
     #[test]
     fn check_node_edges() {
-        let model = create_directed_test_model();
+        let mut model = create_directed_test_model();
 
         let node_edges_found = model.node_edges(&(0 as usize)).unwrap();
         let node_edges_expected = vec![
@@ -988,6 +1050,7 @@ mod test {
             "e3".to_string(),
             "e4".to_string(),
         ];
+
         assert!(
             //check if 2 vectors have the same elements in any order
             node_edges_expected
@@ -1004,10 +1067,10 @@ mod test {
 
     #[test]
     fn check_node_incoming_edges() {
-        let model = create_directed_test_model();
+        let mut model = create_directed_test_model();
 
-        let node_edges_found = model.node_incoming_edges(&(0 as usize)).unwrap();
-        let node_edges_expected = vec!["e3".to_string(), "e4".to_string()];
+        let node_edges_found = model.node_incoming_edges(&(1 as usize)).unwrap();
+        let node_edges_expected = vec!["e1".to_string(), "e5".to_string()];
         assert!(
             //check if 2 vectors have the same elements in any order
             node_edges_expected
@@ -1024,7 +1087,7 @@ mod test {
 
     #[test]
     fn check_node_outgoing_edges() {
-        let model = create_directed_test_model();
+        let mut model = create_directed_test_model();
 
         let node_edges_found = model.node_outgoing_edges(&(0 as usize)).unwrap();
         let node_edges_expected = vec!["e1".to_string(), "e2".to_string()];
@@ -1044,7 +1107,7 @@ mod test {
 
     #[test]
     fn check_node_neighbours() {
-        let model = create_directed_test_model();
+        let mut model = create_directed_test_model();
 
         let node_neighbours_found = model.node_neighbours(&(0 as usize)).unwrap();
         let node_neighbours_expected = vec!["v2".to_string(), "v3".to_string()];

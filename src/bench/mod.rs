@@ -343,6 +343,30 @@ mod test {
         }
     }
 
+    fn bench_undirected_node_edges(filename: &str) {
+        let graph = create_undirected_unweighted_benchmark_graph(filename);
+        if let Ok(mut model) = WaveModel::try_from(graph) {
+            let now = Instant::now();
+            let _ = model.node_edges(&(0));
+            println!("Undirected_node_edges: {:.3?}", now.elapsed());
+            assert!(true);
+        } else {
+            assert!(false);
+        }
+    }
+
+    fn bench_undirected_node_neighbours(filename: &str) {
+        let graph = create_undirected_unweighted_benchmark_graph(filename);
+        if let Ok(mut model) = WaveModel::try_from(graph) {
+            let now = Instant::now();
+            let _ = model.node_neighbours(&(0));
+            println!("Undirected_node_neighbours: {:.3?}", now.elapsed());
+            assert!(true);
+        } else {
+            assert!(false);
+        }
+    }
+
     #[test]
     #[ignore]
     pub fn exec_bench() {
@@ -395,47 +419,53 @@ mod test {
             return;
         }
 
-        // tiny
-        bench_directed_create("src/bench/input/tinyDG.txt");
-        bench_directed_create_add_node("src/bench/input/tinyDG.txt");
-        bench_directed_create_add_edge("src/bench/input/tinyDG.txt");
-        bench_directed_create_remove_edge("src/bench/input/tinyDG.txt", 1 as u8);
-        bench_directed_create_remove_node("src/bench/input/tinyDG.txt", 1 as u8);
+        // // tiny
+        // bench_directed_create("src/bench/input/tinyDG.txt");
+        // bench_directed_create_add_node("src/bench/input/tinyDG.txt");
+        // bench_directed_create_add_edge("src/bench/input/tinyDG.txt");
+        // bench_directed_create_remove_edge("src/bench/input/tinyDG.txt", 1 as u8);
+        // bench_directed_create_remove_node("src/bench/input/tinyDG.txt", 1 as u8);
 
-        bench_undirected_create("src/bench/input/tinyDG.txt");
-        bench_undirected_create_add_node("src/bench/input/tinyDG.txt");
-        bench_undirected_create_add_edge("src/bench/input/tinyDG.txt");
-        bench_undirected_create_remove_edge("src/bench/input/tinyDG.txt", 1 as u8);
-        bench_undirected_create_remove_node("src/bench/input/tinyDG.txt", 1 as u8);
+        // bench_undirected_create("src/bench/input/tinyDG.txt");
+        // bench_undirected_create_add_node("src/bench/input/tinyDG.txt");
+        // bench_undirected_create_add_edge("src/bench/input/tinyDG.txt");
+        // bench_undirected_create_remove_edge("src/bench/input/tinyDG.txt", 1 as u8);
+        // bench_undirected_create_remove_node("src/bench/input/tinyDG.txt", 1 as u8);
+        bench_undirected_node_edges("src/bench/input/tinyDG.txt");
+        bench_undirected_node_neighbours("src/bench/input/tinyDG.txt");
 
-        // medium
-        bench_directed_create("src/bench/input/mediumDG.txt");
-        bench_directed_create_add_node("src/bench/input/mediumDG.txt");
-        bench_directed_create_add_edge("src/bench/input/mediumDG.txt");
-        bench_directed_create_remove_edge("src/bench/input/mediumDG.txt", 1 as u8);
-        bench_directed_create_remove_node("src/bench/input/mediumDG.txt", 1 as u8);
+        // // medium
+        // bench_directed_create("src/bench/input/mediumDG.txt");
+        // bench_directed_create_add_node("src/bench/input/mediumDG.txt");
+        // bench_directed_create_add_edge("src/bench/input/mediumDG.txt");
+        // bench_directed_create_remove_edge("src/bench/input/mediumDG.txt", 1 as u8);
+        // bench_directed_create_remove_node("src/bench/input/mediumDG.txt", 1 as u8);
 
-        bench_undirected_create("src/bench/input/mediumDG.txt");
-        bench_undirected_create_add_node("src/bench/input/mediumDG.txt");
-        bench_undirected_create_add_edge("src/bench/input/mediumDG.txt");
-        bench_undirected_create_remove_edge("src/bench/input/mediumDG.txt", 1 as u8);
-        bench_undirected_create_remove_node("src/bench/input/mediumDG.txt", 1 as u8);
+        // bench_undirected_create("src/bench/input/mediumDG.txt");
+        // bench_undirected_create_add_node("src/bench/input/mediumDG.txt");
+        // bench_undirected_create_add_edge("src/bench/input/mediumDG.txt");
+        // bench_undirected_create_remove_edge("src/bench/input/mediumDG.txt", 1 as u8);
+        // bench_undirected_create_remove_node("src/bench/input/mediumDG.txt", 1 as u8);
+        //bench_undirected_node_edges("src/bench/input/mediumDG.txt");
+        bench_undirected_node_neighbours("src/bench/input/mediumDG.txt");
 
-        // large
-        bench_directed_create("src/bench/input/largeDG.txt");
-        bench_directed_create_add_node("src/bench/input/largeDG.txt");
-        bench_directed_create_add_edge("src/bench/input/largeDG.txt");
-        bench_directed_create_remove_edge("src/bench/input/largeDG.txt", 1 as u8);
-        bench_directed_create_remove_node("src/bench/input/largeDG.txt", 1 as u8);
-        bench_directed_create_remove_edge("src/bench/input/largeDG.txt", 10 as u8);
-        bench_directed_create_remove_edge("src/bench/input/largeDG.txt", 10 as u8);
+        // // large
+        // bench_directed_create("src/bench/input/largeDG.txt");
+        // bench_directed_create_add_node("src/bench/input/largeDG.txt");
+        // bench_directed_create_add_edge("src/bench/input/largeDG.txt");
+        // bench_directed_create_remove_edge("src/bench/input/largeDG.txt", 1 as u8);
+        // bench_directed_create_remove_node("src/bench/input/largeDG.txt", 1 as u8);
+        // bench_directed_create_remove_edge("src/bench/input/largeDG.txt", 10 as u8);
+        // bench_directed_create_remove_edge("src/bench/input/largeDG.txt", 10 as u8);
 
-        bench_undirected_create("src/bench/input/largeDG.txt");
-        bench_undirected_create_add_node("src/bench/input/largeDG.txt");
-        bench_undirected_create_add_edge("src/bench/input/largeDG.txt");
-        bench_undirected_create_remove_edge("src/bench/input/largeDG.txt", 1 as u8);
-        bench_undirected_create_remove_node("src/bench/input/largeDG.txt", 1 as u8);
-        bench_undirected_create_remove_edge("src/bench/input/largeDG.txt", 10 as u8);
-        bench_undirected_create_remove_edge("src/bench/input/largeDG.txt", 10 as u8);
+        // bench_undirected_create("src/bench/input/largeDG.txt");
+        // bench_undirected_create_add_node("src/bench/input/largeDG.txt");
+        // bench_undirected_create_add_edge("src/bench/input/largeDG.txt");
+        // bench_undirected_create_remove_edge("src/bench/input/largeDG.txt", 1 as u8);
+        // bench_undirected_create_remove_node("src/bench/input/largeDG.txt", 1 as u8);
+        // bench_undirected_create_remove_edge("src/bench/input/largeDG.txt", 10 as u8);
+        // bench_undirected_create_remove_node("src/bench/input/largeDG.txt", 10 as u8);
+        // bench_undirected_node_edges("src/bench/input/largeDG.txt");
+        bench_undirected_node_neighbours("src/bench/input/largeDG.txt");
     }
 }
