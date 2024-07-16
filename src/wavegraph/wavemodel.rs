@@ -471,7 +471,7 @@ where
         let edges_start_index = self.bitmap.rank0(search_start_index).unwrap();
         let edges_end_index = edges_start_index + edges_amount;
 
-        //use the indeces to get the edge labels. skip looping edges because they will be counted as incoming edges in the next step.
+        //use the indices to get the edge labels. skip looping edges because they will be counted as incoming edges in the next step.
         let mut edges: Vec<L> = (edges_start_index..edges_end_index)
             .filter_map(|n| {
                 if self.index_access(n).unwrap() != *idx {
@@ -506,8 +506,13 @@ where
             return Err(WaveModelError::NodeDoesNotExist);
         }
 
+        let seq_length = match self.wavelet_matrix {
+            QWT::QWT256(ref qwt) => qwt.len(),
+            QWT::QWT512(ref qwt) => qwt.len(),
+        };
+
         //how often does the symbol idx appear in the sequence
-        let incoming_edges_amount = self.index_rank(*idx, self.sequence.len()).unwrap();
+        let incoming_edges_amount = self.index_rank(*idx, seq_length).unwrap();
         //get all the instances of idx and clone the corresponing edge label
         let incoming_edges: Vec<L> = (0..incoming_edges_amount)
             .map(|n| {
@@ -542,7 +547,7 @@ where
         let edges_start_index = self.bitmap.rank0(search_start_index).unwrap();
         let edges_end_index = edges_start_index + edges_amount;
 
-        //use the indeces to get the edge labels
+        //use the indices to get the edge labels
         let outgoing_edges: Vec<L> = (edges_start_index..edges_end_index)
             .map(|n| self.data_table_edges[n].0.clone())
             .collect();
@@ -571,7 +576,7 @@ where
         let edges_start_index = self.bitmap.rank0(search_start_index).unwrap();
         let edges_end_index = edges_start_index + edges_amount;
 
-        //use the indeces to get the edge labels
+        //use the indices to get the edge labels
         let outgoing_edges: Vec<L> = (edges_start_index..edges_end_index)
             .map(|n| {
                 self.data_table_nodes[self.index_access(n).unwrap()]
